@@ -42,6 +42,6 @@ You can implement CelerApp with Substrate runtime module or smart contract([ink!
 
 *virtual contract: The contract can also stay off-chain as a virtual counterfactually instantiated by involved parties. A virtual contract only needs to be deployed only needs to be deployed on-chain if someone wants to dispute, in which case ClerPay can find where to call the `is_finalized` and `get_outcome`APIs through a unique identifier computed by the hash of the virtual contract code, initial states, and a nonce.
 
-* Smart contract will support future.
+*Smart contract will support future.
 
 
