@@ -37,7 +37,7 @@ pub struct AppState<BlockNumber, Hash> {
     seq_num: u128,
     state: u8,
     timeout: BlockNumber,
-    app_id: Hash,
+    session_id: Hash,
 }
 
 pub type AppStateOf<T> = AppState<
@@ -120,9 +120,9 @@ decl_module!  {
             origin,
             initiate_request: AppInitiateRequestOf<T>
         ) -> DispatchResult {
-            let app_id = Self::get_app_id(initiate_request.nonce, initiate_request.players.clone());
+            let session_id = Self::get_session_id(initiate_request.nonce, initiate_request.players.clone());
             ensure!(
-                AppInfoMap::<T>::contains_key(&app_id) == false,
+                AppInfoMap::<T>::contains_key(&session_id) == false,
                 "AppId alreads exists"
             );
 
@@ -135,7 +135,7 @@ decl_module!  {
                 deadline: Zero::zero(),
                 status: AppStatus::Idle,
             };
-            AppInfoMap::<T>::insert(app_id, app_info);
+            AppInfoMap::<T>::insert(session_id, app_info);
         
             Ok(())
         }
@@ -187,11 +187,11 @@ decl_module!  {
                     status: new_app_info.status
                 }
             }
-            let app_id = state_proof.app_state.app_id;
-            AppInfoMap::<T>::mutate(&app_id, |app_info| *app_info = Some(new_app_info.clone()));
+            let session_id = state_proof.app_state.session_id;
+            AppInfoMap::<T>::mutate(&session_id, |app_info| *app_info = Some(new_app_info.clone()));
 
             // Emit IntendSettle event
-            Self::deposit_event(RawEvent::IntendSettle(app_id, new_app_info.seq_num));
+            Self::deposit_event(RawEvent::IntendSettle(session_id, new_app_info.seq_num));
 
             Ok(())
         }
@@ -200,7 +200,7 @@ decl_module!  {
         /// Update state according to an on-chain action
         ///
         /// Parameters:
-        /// - `app_id`: Id of app
+        /// - `session_id`: Id of app
         /// - `action`: Action data
         ///
         /// # <weight>
@@ -214,11 +214,11 @@ decl_module!  {
         #[weight = 24_000_000 + T::DbWeight::get().reads_writes(1, 1)]
         fn update_by_action(
             origin,
-            app_id: T::Hash,
+            session_id: T::Hash,
             action: u8
         ) -> DispatchResult {
             ensure_signed(origin)?;
-            let mut new_app_info: AppInfoOf<T> = Self::apply_action(app_id)?;
+            let mut new_app_info: AppInfoOf<T> = Self::apply_action(session_id)?;
         
             if action == 1 || action == 2 {
                 new_app_info = AppInfoOf::<T> {
@@ -231,7 +231,7 @@ decl_module!  {
                     status: AppStatus::Finalized,
                 }
             } 
-            AppInfoMap::<T>::mutate(&app_id, |app_info| *app_info = Some(new_app_info));
+            AppInfoMap::<T>::mutate(&session_id, |app_info| *app_info = Some(new_app_info));
 
             Ok(())
         }
@@ -239,7 +239,7 @@ decl_module!  {
         /// Finalize in case of on-chain action timeout
         ///
         /// Parameters:
-        /// - `app_id`: Id of app
+        /// - `session_id`: Id of app
         ///
         /// # <weight>
         /// ## Weight
@@ -252,10 +252,10 @@ decl_module!  {
         #[weight = 22_000_000 + T::DbWeight::get().reads_writes(1, 1)]
         fn finalize_on_action_timeout(
             origin,
-            app_id: T::Hash
+            session_id: T::Hash
         ) -> DispatchResult {
             ensure_signed(origin)?;
-            let app_info = match AppInfoMap::<T>::get(app_id) {
+            let app_info = match AppInfoMap::<T>::get(session_id) {
                 Some(app) => app,
                 None => Err(Error::<T>::AppInfoNotExist)?,
             };
@@ -284,7 +284,7 @@ decl_module!  {
                 deadline: app_info.deadline,
                 status: AppStatus::Finalized,
             };
-            AppInfoMap::<T>::mutate(&app_id, |app_info| *app_info = Some(new_app_info));
+            AppInfoMap::<T>::mutate(&session_id, |app_info| *app_info = Some(new_app_info));
 
             Ok(())
         }
@@ -292,7 +292,7 @@ decl_module!  {
         /// Check whether app is finalized
         ///
         /// Parameters:
-        /// - `app_id`: Id of app
+        /// - `session_id`: Id of app
         ///
         /// # <weight>
         /// ## Weight
@@ -304,10 +304,10 @@ decl_module!  {
         #[weight = 11_000_000 + T::DbWeight::get().reads(1)]
         pub fn is_finalized(
             origin,
-            app_id: T::Hash,
+            session_id: T::Hash,
         ) -> DispatchResult {
             ensure_signed(origin)?;
-            let app_info = match AppInfoMap::<T>::get(app_id) {
+            let app_info = match AppInfoMap::<T>::get(session_id) {
                 Some(app) => app,
                 None => return Err(Error::<T>::AppInfoNotExist)?,
             };
@@ -325,7 +325,7 @@ decl_module!  {
         /// Get the app outcome
         /// 
         /// Parameters:
-        /// - `app_id`: Id of app
+        /// - `session_id`: Id of app
         /// - `query`: query param
         ///
         /// # <weight>
@@ -338,11 +338,11 @@ decl_module!  {
         #[weight = 11_000_000 + T::DbWeight::get().reads(1)]
         pub fn get_outcome(
             origin,
-            app_id: T::Hash,
+            session_id: T::Hash,
             query: u8
         ) -> DispatchResult {
             ensure_signed(origin)?;
-            let app_info = match AppInfoMap::<T>::get(app_id) {
+            let app_info = match AppInfoMap::<T>::get(session_id) {
                 Some(app) => app,
                 None => Err(Error::<T>::AppInfoNotExist)?,
             };
@@ -363,7 +363,7 @@ decl_event! (
     pub enum Event<T> where 
         <T as system::Trait>::Hash
     {
-        /// IntendSettle(app_id, seq_num)
+        /// IntendSettle(session_id, seq_num)
         IntendSettle(Hash, u128),
     }
 );
@@ -381,7 +381,7 @@ impl<T: Trait> Module<T> {
     /// Parameters:
     /// `nonce`: Nonce of app
     /// `players`: AccountId of players
-    fn get_app_id(
+    fn get_session_id(
         nonce: u128,
         players: Vec<T::AccountId>,
     ) -> T::Hash {
@@ -390,16 +390,16 @@ impl<T: Trait> Module<T> {
         encoded.extend(nonce.encode());
         encoded.extend(players[0].encode());
         encoded.extend(players[1].encode());
-        let app_id = T::Hashing::hash(&encoded);
-        return app_id;
+        let session_id = T::Hashing::hash(&encoded);
+        return session_id;
     }
 
     /// Get app state
     ///
     /// Parameter:
-    /// `app_id`: Id of app
-    pub fn get_state(app_id: T::Hash) -> Option<u8> {
-        let app_info = match AppInfoMap::<T>::get(app_id) {
+    /// `session_id`: Id of app
+    pub fn get_state(session_id: T::Hash) -> Option<u8> {
+        let app_info = match AppInfoMap::<T>::get(session_id) {
             Some(app) => app,
             None => return None,
         };
@@ -410,9 +410,9 @@ impl<T: Trait> Module<T> {
     /// Get app status
     ///
     /// Parameter:
-    /// `app_id`: Id of app
-    pub fn get_status(app_id: T::Hash) -> Option<AppStatus> {
-        let app_info = match AppInfoMap::<T>::get(app_id) {
+    /// `session_id`: Id of app
+    pub fn get_status(session_id: T::Hash) -> Option<AppStatus> {
+        let app_info = match AppInfoMap::<T>::get(session_id) {
             Some(app) => app,
             None => return None,
         };
@@ -423,9 +423,9 @@ impl<T: Trait> Module<T> {
     /// Get state settle finalized time
     ///
     /// Parameter:
-    /// `app_id`: Id of app
-    pub fn get_settle_finalized_time(app_id: T::Hash) -> Option<T::BlockNumber> {
-        let app_info = match AppInfoMap::<T>::get(app_id) {
+    /// `session_id`: Id of app
+    pub fn get_settle_finalized_time(session_id: T::Hash) -> Option<T::BlockNumber> {
+        let app_info = match AppInfoMap::<T>::get(session_id) {
             Some(app) => app,
             None => return None,
         };
@@ -440,9 +440,9 @@ impl<T: Trait> Module<T> {
     /// Get action deadline
     ///
     /// Parameter:
-    /// `app_id`: Id of app
-    pub fn get_action_deadline(app_id: T::Hash) -> Option<T::BlockNumber> {
-        let app_info = match AppInfoMap::<T>::get(app_id) {
+    /// `session_id`: Id of app
+    pub fn get_action_deadline(session_id: T::Hash) -> Option<T::BlockNumber> {
+        let app_info = match AppInfoMap::<T>::get(session_id) {
             Some(app) => app,
             None => return None,
         };
@@ -458,9 +458,9 @@ impl<T: Trait> Module<T> {
     /// Get app sequence number
     ///
     /// Parameter:
-    /// `app_id`: Id of app
-    pub fn get_seq_num(app_id: T::Hash) -> Option<u128> {
-        let app_info = match AppInfoMap::<T>::get(app_id) {
+    /// `session_id`: Id of app
+    pub fn get_seq_num(session_id: T::Hash) -> Option<u128> {
+        let app_info = match AppInfoMap::<T>::get(session_id) {
             Some(app) => app,
             None => return None,
         };     
@@ -480,7 +480,7 @@ impl<T: Trait> Module<T> {
         state_proof: StateProofOf<T>
     ) -> Result<AppInfoOf<T>, DispatchError> {
         let app_state = state_proof.app_state;
-        let app_info = match AppInfoMap::<T>::get(app_state.app_id) {
+        let app_info = match AppInfoMap::<T>::get(app_state.session_id) {
             Some(app) => app,
             None => Err(Error::<T>::AppInfoNotExist)?,
         };
@@ -516,11 +516,11 @@ impl<T: Trait> Module<T> {
     /// Apply an action to the on-chain state
     ///
     /// Parameter:
-    /// `app_id`: Id of app
+    /// `session_id`: Id of app
     fn apply_action(
-        app_id: T::Hash,
+        session_id: T::Hash,
     ) -> Result<AppInfoOf<T>, DispatchError> {
-        let app_info = match AppInfoMap::<T>::get(app_id) {
+        let app_info = match AppInfoMap::<T>::get(session_id) {
             Some(app) => app,
             None => Err(Error::<T>::AppInfoNotExist)?,
         };
@@ -594,7 +594,7 @@ impl<T: Trait> Module<T> {
         encoded.extend(app_state.seq_num.encode());
         encoded.extend(app_state.state.encode());
         encoded.extend(app_state.timeout.encode());
-        encoded.extend(app_state.app_id.encode());
+        encoded.extend(app_state.session_id.encode());
 
         return encoded;
     }

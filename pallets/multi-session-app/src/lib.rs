@@ -400,7 +400,7 @@ impl<T: Trait> Module<T> {
     /// Get session state
     ///
     /// Parameter:
-    /// `app_id`: Id of session
+    /// `session_id`: Id of session
     pub fn get_state(session_id: T::Hash) -> Option<u8> {
         let session_info = match SessionInfoMap::<T>::get(session_id) {
             Some(session) => session,
@@ -426,7 +426,7 @@ impl<T: Trait> Module<T> {
     /// Get state settle finalized time
     ///
     /// Parameter:
-    /// `app_id`: Id of session
+    /// `session_id`: Id of session
     pub fn get_settle_finalized_time(session_id: T::Hash) -> Option<T::BlockNumber> {
         let session_info = match SessionInfoMap::<T>::get(session_id) {
             Some(session) => session,
