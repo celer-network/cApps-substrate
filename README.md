@@ -31,8 +31,6 @@ pub fn get_outcome(_app_id: T::Hash, query: Option<Vec<u8>>) -> Result<u32, Disp
 
 You can implement CelerApp with Substrate runtime module or smart contract([ink!](https://github.com/paritytech/ink)).
 
-*Smart contract will support in the future.
-
 |  | boolean outcome runtime module | numeric outcome runtime module | boolean & numeric outcome smart contract |
 | ----------|----------| -------------| ---------------|
 | deploy option | initially deploy | initially deploy | initially deploy or virtual contract |
@@ -44,5 +42,6 @@ You can implement CelerApp with Substrate runtime module or smart contract([ink!
 
 *virtual contract: The contract can also stay off-chain as a virtual counterfactually instantiated by involved parties. A virtual contract only needs to be deployed only needs to be deployed on-chain if someone wants to dispute, in which case ClerPay can find where to call the `is_finalized` and `get_outcome`APIs through a unique identifier computed by the hash of the virtual contract code, initial states, and a nonce.
 
+* Smart contract will support future.
 
 
