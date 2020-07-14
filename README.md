@@ -30,6 +30,7 @@ pub fn get_outcome(_app_id: T::Hash, query: Option<Vec<u8>>) -> Result<u32, Disp
 ```
 
 You can implement CelerApp with Substrate runtime module or smart contract([ink!](https://github.com/paritytech/ink)).
+
 *Smart contract will support in the future.
 
 |  | boolean outcome runtime module | numeric outcome runtime module | boolean & numeric outcome smart contract |
