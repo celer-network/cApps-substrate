@@ -39,7 +39,7 @@ pub struct AppState<BlockNumber, Hash> {
     seq_num: u128,
     board_state: Vec<u8>,
     timeout: BlockNumber,
-    app_id: Hash,
+    session_id: Hash,
 }
 
 pub type AppStateOf<T> = AppState<
@@ -150,9 +150,9 @@ decl_module! {
         ) -> DispatchResult {
             ensure_signed(origin)?;
 
-            let app_id = Self::get_app_id(initiate_request.nonce, initiate_request.players.clone());
+            let session_id = Self::get_session_id(initiate_request.nonce, initiate_request.players.clone());
             ensure!(
-                MultiGomokuInfoMap::<T>::contains_key(&app_id) == false,
+                MultiGomokuInfoMap::<T>::contains_key(&session_id) == false,
                 "AppId already exists"
             );
 
@@ -176,7 +176,7 @@ decl_module! {
                 status: AppStatus::Idle,
                 gomoku_state: gomoku_state,
             };
-            MultiGomokuInfoMap::<T>::insert(app_id, gomoku_info);
+            MultiGomokuInfoMap::<T>::insert(session_id, gomoku_info);
 
             Ok(())
         }
@@ -247,10 +247,10 @@ decl_module! {
                 status: gomoku_info.status,
                 gomoku_state: new_gomoku_state,
             };
-            let app_id = state_proof.app_state.app_id;
-            MultiGomokuInfoMap::<T>::mutate(app_id, |info| *info = Some(new_gomoku_info.clone()));
+            let session_id = state_proof.app_state.session_id;
+            MultiGomokuInfoMap::<T>::mutate(session_id, |info| *info = Some(new_gomoku_info.clone()));
 
-            Self::deposit_event(RawEvent::IntendSettle(app_id, new_gomoku_info.seq_num));
+            Self::deposit_event(RawEvent::IntendSettle(session_id, new_gomoku_info.seq_num));
 
             Ok(())
         }
@@ -258,7 +258,7 @@ decl_module! {
         /// Update state according to an on-chain action
         ///
         /// Parameters:
-        /// - `app_id`: Id of app
+        /// - `session_id`: Id of app
         /// - `action`: Action data
         ///
         /// # <weight>
@@ -272,13 +272,13 @@ decl_module! {
         #[weight = 46_000_000 + T::DbWeight::get().reads_writes(1, 2)]
         fn update_by_action(
             origin,
-            app_id: T::Hash,
+            session_id: T::Hash,
             action: Vec<u8>
         ) -> DispatchResult {
             let caller = ensure_signed(origin)?;
 
             // apply an action to the on-chain state
-            let gomoku_info = Self::apply_action(app_id)?;
+            let gomoku_info = Self::apply_action(session_id)?;
             let gomoku_state = gomoku_info.gomoku_state.clone();
             let mut board_state = match gomoku_state.board_state {
                 Some(state) => state,
@@ -337,7 +337,7 @@ decl_module! {
                 status: gomoku_info.status.clone(),
                 gomoku_state: new_gomoku_state_1,
             };
-            MultiGomokuInfoMap::<T>::mutate(app_id, |info| *info = Some(new_gomoku_info_1.clone()));
+            MultiGomokuInfoMap::<T>::mutate(session_id, |info| *info = Some(new_gomoku_info_1.clone()));
 
             // check if there is five-in-a-row including this new stone
             if Self::check_five(board_state.clone(), x, y, 1, 0) // horizontal bidirection
@@ -346,7 +346,7 @@ decl_module! {
                 || Self::check_five(board_state.clone(), x, y, 1, -1) // anti-diagonal bidirection
             {
                 new_gomoku_info_1 = Self::win_game(turn_color as u8, new_gomoku_info_1)?;
-                MultiGomokuInfoMap::<T>::mutate(app_id, |info| *info = Some(new_gomoku_info_1));
+                MultiGomokuInfoMap::<T>::mutate(session_id, |info| *info = Some(new_gomoku_info_1));
                 return Ok(());
             }
 
@@ -371,7 +371,7 @@ decl_module! {
                         status: AppStatus::Finalized,
                         gomoku_state: new_gomoku_state_2,
                     };
-                    MultiGomokuInfoMap::<T>::mutate(app_id, |info| *info = Some(new_gomoku_info_2.clone()));
+                    MultiGomokuInfoMap::<T>::mutate(session_id, |info| *info = Some(new_gomoku_info_2.clone()));
             } else {
                 // toggle turn and update game phase
                 if turn_color == Color::Black as usize {
@@ -398,7 +398,7 @@ decl_module! {
                     status: gomoku_info.status,
                     gomoku_state: new_gomoku_state_2,
                 };
-                MultiGomokuInfoMap::<T>::mutate(app_id, |info| *info = Some(new_gomoku_info_2.clone()));
+                MultiGomokuInfoMap::<T>::mutate(session_id, |info| *info = Some(new_gomoku_info_2.clone()));
             }
 
             Ok(())
@@ -407,7 +407,7 @@ decl_module! {
         /// Finalize the app based on current state in case of on-chain action timeout
         ///
         /// Parameters:
-        /// - `app_id`: Id of app
+        /// - `session_id`: Id of app
         ///
         /// # <weight>
         /// ## Weight
@@ -420,10 +420,10 @@ decl_module! {
         #[weight = 30_000_000 + T::DbWeight::get().reads_writes(1, 1)]
         fn finalize_on_action_timeout(
             origin,
-            app_id: T::Hash
+            session_id: T::Hash
         ) -> DispatchResult {
             ensure_signed(origin)?;
-            let gomoku_info = match MultiGomokuInfoMap::<T>::get(app_id) {
+            let gomoku_info = match MultiGomokuInfoMap::<T>::get(session_id) {
                 Some(info) => info,
                 None => Err(Error::<T>::MultiGomokuInfoNotExist)?,
             };
@@ -450,10 +450,10 @@ decl_module! {
 
             if board_state[1] == Color::Black as u8 {
                 let new_gomoku_info = Self::win_game(2, gomoku_info)?;
-                MultiGomokuInfoMap::<T>::mutate(app_id, |info| *info = Some(new_gomoku_info));
+                MultiGomokuInfoMap::<T>::mutate(session_id, |info| *info = Some(new_gomoku_info));
             } else if board_state[1] == Color::White as u8 {
                 let new_gomoku_info = Self::win_game(1, gomoku_info)?;
-                MultiGomokuInfoMap::<T>::mutate(app_id, |info| *info = Some(new_gomoku_info));
+                MultiGomokuInfoMap::<T>::mutate(session_id, |info| *info = Some(new_gomoku_info));
             } else {
                 return Ok(());
             }
@@ -464,7 +464,7 @@ decl_module! {
         /// Check whether app is finalized
         ///
         /// Parameters:
-        /// - `app_id`: Id of app
+        /// - `session_id`: Id of app
         ///
         /// # <weight>
         /// ## Weight
@@ -476,10 +476,10 @@ decl_module! {
         #[weight = 12_000_000 + T::DbWeight::get().reads(1)]
         pub fn is_finalized(
            origin,
-           app_id: T::Hash
+           session_id: T::Hash
         ) -> DispatchResult {
             ensure_signed(origin)?;
-            let gomoku_info = match MultiGomokuInfoMap::<T>::get(app_id) {
+            let gomoku_info = match MultiGomokuInfoMap::<T>::get(session_id) {
                 Some(info) => info,
                 None => Err(Error::<T>::MultiGomokuInfoNotExist)?,
             };
@@ -497,7 +497,7 @@ decl_module! {
         /// Get the app outcome
         /// 
         /// Parameters:
-        /// - `app_id`: Id of app
+        /// - `session_id`: Id of app
         /// - `query`: query param
         ///
         /// # <weight>
@@ -510,11 +510,11 @@ decl_module! {
         #[weight = 12_000_000 + T::DbWeight::get().reads(1)]
         pub fn get_outcome(
             origin,
-            app_id: T::Hash,
+            session_id: T::Hash,
             query: u8,
         ) -> DispatchResult {
             ensure_signed(origin)?;
-            let gomoku_info = match MultiGomokuInfoMap::<T>::get(app_id) {
+            let gomoku_info = match MultiGomokuInfoMap::<T>::get(session_id) {
                 Some(info) => info,
                 None => Err(Error::<T>::MultiGomokuInfoNotExist)?,
             };
@@ -539,7 +539,7 @@ decl_event! (
     pub enum Event<T> where
         <T as system::Trait>::Hash
     {
-        /// IntendSettle(app_id, seq_num)
+        /// IntendSettle(session_id, seq_num)
         IntendSettle(Hash, u128),
     }
 );
@@ -561,7 +561,7 @@ impl<T: Trait> Module<T> {
     /// Parameters:
     /// `nonce`: Nonce of app
     /// `players`: AccountId of players
-    pub fn get_app_id(
+    pub fn get_session_id(
        nonce:  u128,
        players: Vec<T::AccountId>,
     ) -> T::Hash {
@@ -570,17 +570,17 @@ impl<T: Trait> Module<T> {
         encoded.extend(nonce.encode());
         players.into_iter()
             .for_each(|players| { encoded.extend(players.encode()); });
-        let app_id = T::Hashing::hash(&encoded);
-        return app_id;
+        let session_id = T::Hashing::hash(&encoded);
+        return session_id;
     }
 
     /// Get app state
     ///
     /// Parameters:
-    /// `app_id`: Id of app
+    /// `session_id`: Id of app
     /// `key`: Query key 0:WinnerColor, 1:TurnColor, 2:FullState
-    pub fn get_state(app_id: T::Hash, key: u8) -> Option<Vec<u8>> {
-        let gomoku_info = match MultiGomokuInfoMap::<T>::get(app_id) {
+    pub fn get_state(session_id: T::Hash, key: u8) -> Option<Vec<u8>> {
+        let gomoku_info = match MultiGomokuInfoMap::<T>::get(session_id) {
             Some(info) => info,
             None => return None
         };
@@ -601,9 +601,9 @@ impl<T: Trait> Module<T> {
     /// Get app status
     ///
     /// Parameter:
-    /// `app_id`: Id of app
-    pub fn get_status(app_id: T::Hash) -> Option<AppStatus> {
-        let gomoku_info = match MultiGomokuInfoMap::<T>::get(app_id) {
+    /// `session_id`: Id of app
+    pub fn get_status(session_id: T::Hash) -> Option<AppStatus> {
+        let gomoku_info = match MultiGomokuInfoMap::<T>::get(session_id) {
             Some(info) => info,
             None => return None
         };
@@ -614,9 +614,9 @@ impl<T: Trait> Module<T> {
     /// Get state settle finalized time
     ///
     /// Parameter:
-    /// `app_id`: Id of app
-    pub fn get_settle_finalized_time(app_id: T::Hash) -> Option<T::BlockNumber> {
-        let gomoku_info = match MultiGomokuInfoMap::<T>::get(app_id) {
+    /// `session_id`: Id of app
+    pub fn get_settle_finalized_time(session_id: T::Hash) -> Option<T::BlockNumber> {
+        let gomoku_info = match MultiGomokuInfoMap::<T>::get(session_id) {
             Some(info) => info,
             None => return None
         };
@@ -631,9 +631,9 @@ impl<T: Trait> Module<T> {
     /// Get action deadline
     ///
     /// Parameter:
-    /// `app_id`: Id of app
-    pub fn get_action_deadline(app_id: T::Hash) -> Option<T::BlockNumber> {
-        let gomoku_info = match MultiGomokuInfoMap::<T>::get(app_id) {
+    /// `session_id`: Id of app
+    pub fn get_action_deadline(session_id: T::Hash) -> Option<T::BlockNumber> {
+        let gomoku_info = match MultiGomokuInfoMap::<T>::get(session_id) {
             Some(info) => info,
             None => return None
         };
@@ -650,9 +650,9 @@ impl<T: Trait> Module<T> {
     /// Get app sequence number
     ///
     /// Parameter:
-    /// `app_id`: Id of app
-    pub fn get_seq_num(app_id: T::Hash) -> Option<u128> {
-        let gomoku_info = match MultiGomokuInfoMap::<T>::get(app_id) {
+    /// `session_id`: Id of app
+    pub fn get_seq_num(session_id: T::Hash) -> Option<u128> {
+        let gomoku_info = match MultiGomokuInfoMap::<T>::get(session_id) {
             Some(info) => info,
             None => return None
         };
@@ -673,7 +673,7 @@ impl<T: Trait> Module<T> {
         state_proof: StateProofOf<T>
     ) -> Result<GomokuInfoOf<T>, DispatchError> {
         let app_state = state_proof.app_state;
-        let gomoku_info = match MultiGomokuInfoMap::<T>::get(app_state.app_id) {
+        let gomoku_info = match MultiGomokuInfoMap::<T>::get(app_state.session_id) {
             Some(info) => info,
             None => Err(Error::<T>::MultiGomokuInfoNotExist)?,
         };
@@ -706,11 +706,11 @@ impl<T: Trait> Module<T> {
     /// Apply an action to the on-chain state
     ///
     /// Parameter:
-    /// `app_id`: Id of app
+    /// `session_id`: Id of app
     fn apply_action(
-        app_id: T::Hash
+        session_id: T::Hash
     ) -> Result<GomokuInfoOf<T>, DispatchError> {
-        let gomoku_info = match MultiGomokuInfoMap::<T>::get(app_id) {
+        let gomoku_info = match MultiGomokuInfoMap::<T>::get(session_id) {
             Some(info) => info,
             None => Err(Error::<T>::MultiGomokuInfoNotExist)?,
         };
@@ -946,7 +946,7 @@ impl<T: Trait> Module<T> {
         app_state.board_state.iter()
             .for_each(|state| { encoded.extend(state.encode()); });
         encoded.extend(app_state.timeout.encode());
-        encoded.extend(app_state.app_id.encode());
+        encoded.extend(app_state.session_id.encode());
 
         return encoded;
     }

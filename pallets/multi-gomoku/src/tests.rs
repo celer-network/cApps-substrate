@@ -41,7 +41,7 @@ fn test_pass_player1_submits_state_proof() {
         let (players, players_pair) 
             = get_sorted_peer(alice_pair, bob_pair);
         
-        let app_id = app_initiate(nonce1, players.clone(), 2, 2, 5, 5);
+        let session_id = app_initiate(nonce1, players.clone(), 2, 2, 5, 5);
         
         let mut board_state = vec![0; 228];
         board_state[0] = none; 
@@ -55,14 +55,14 @@ fn test_pass_player1_submits_state_proof() {
         board_state[8] = white;
         board_state[9] = black;
 
-        let state_proof = get_state_proof(3, board_state, 2, app_id, players_pair);
+        let state_proof = get_state_proof(3, board_state, 2, session_id, players_pair);
         assert_ok!(
             MultiGomoku::update_by_state(
                 Origin::signed(players[0]),
                 state_proof
             )
         );
-        let onchain_state = MultiGomoku::get_state(app_id, 2).unwrap();
+        let onchain_state = MultiGomoku::get_state(session_id, 2).unwrap();
         assert_eq!(onchain_state[0], none);
         assert_eq!(onchain_state[1], black);
         assert_eq!(onchain_state[3], white);
@@ -84,12 +84,12 @@ fn test_fail_update_by_state_with_invalid_seq() {
         let (players, players_pair) 
             = get_sorted_peer(alice_pair, bob_pair);
         
-        let app_id = app_initiate(nonce1, players.clone(), 2, 2, 5, 5);
+        let session_id = app_initiate(nonce1, players.clone(), 2, 2, 5, 5);
         
-        place_stone_and_update_by_state(app_id, players.clone(), players_pair.clone());
+        place_stone_and_update_by_state(session_id, players.clone(), players_pair.clone());
 
         let board_state = vec![0; 228];
-        let state_proof = get_state_proof(0, board_state, 2, app_id, players_pair);
+        let state_proof = get_state_proof(0, board_state, 2, session_id, players_pair);
         assert_noop!(
             MultiGomoku::update_by_state(
                 Origin::signed(players[0]),
@@ -113,9 +113,9 @@ fn test_pass_intend_settle_with_higher_seq() {
         let (players, players_pair) 
             = get_sorted_peer(alice_pair, bob_pair);
         
-        let app_id = app_initiate(nonce1, players.clone(), 2, 2, 5, 5);
+        let session_id = app_initiate(nonce1, players.clone(), 2, 2, 5, 5);
         
-        place_stone_and_update_by_state(app_id, players.clone(), players_pair.clone());
+        place_stone_and_update_by_state(session_id, players.clone(), players_pair.clone());
 
         let mut board_state = vec![0; 228];
         board_state[0] = none; // winner
@@ -128,14 +128,14 @@ fn test_pass_intend_settle_with_higher_seq() {
         board_state[101] = white;
         board_state[102] = white;
         board_state[103] = white;
-        let state_proof = get_state_proof(4, board_state, 2, app_id, players_pair);
+        let state_proof = get_state_proof(4, board_state, 2, session_id, players_pair);
         assert_ok!(
             MultiGomoku::update_by_state(
                 Origin::signed(players[0]),
                 state_proof
             )
         );
-        let onchain_state = MultiGomoku::get_state(app_id, 2).unwrap();
+        let onchain_state = MultiGomoku::get_state(session_id, 2).unwrap();
         assert_eq!(onchain_state[0], none);
         assert_eq!(onchain_state[1], white);
         assert_eq!(onchain_state[3], black);
@@ -160,14 +160,14 @@ fn test_fail_player1_places_stone_at_3_12_before_settle_finalized_time() {
         let (players, players_pair) 
             = get_sorted_peer(alice_pair, bob_pair);
         
-        let app_id = app_initiate(nonce1, players.clone(), 2, 2, 5, 5);
+        let session_id = app_initiate(nonce1, players.clone(), 2, 2, 5, 5);
         
-        place_stone_and_update_by_state_two_times(app_id, players.clone(), players_pair);
+        place_stone_and_update_by_state_two_times(session_id, players.clone(), players_pair);
 
         assert_noop!(
             MultiGomoku::update_by_action(
                 Origin::signed(players[0]),
-                app_id,
+                session_id,
                 vec![3, 12]
             ),
             "app not in action mode"
@@ -184,22 +184,22 @@ fn test_pass_player1_places_stone_at_3_12_after_settle_finalized_time() {
         let (players, players_pair) 
             = get_sorted_peer(alice_pair, bob_pair);
         
-        let app_id = app_initiate(nonce1, players.clone(), 2, 2, 5, 5);
+        let session_id = app_initiate(nonce1, players.clone(), 2, 2, 5, 5);
         
-        place_stone_and_update_by_state_two_times(app_id, players.clone(), players_pair);
+        place_stone_and_update_by_state_two_times(session_id, players.clone(), players_pair);
 
-        let settle_finalized_time = MultiGomoku::get_settle_finalized_time(app_id).unwrap();
+        let settle_finalized_time = MultiGomoku::get_settle_finalized_time(session_id).unwrap();
         System::set_block_number(settle_finalized_time + 1);
 
         assert_ok!(
             MultiGomoku::update_by_action(
                 Origin::signed(players[0]),
-                app_id,
+                session_id,
                 vec![3, 12]
             )
         );
 
-        let turn = MultiGomoku::get_state(app_id, 0).unwrap();
+        let turn = MultiGomoku::get_state(session_id, 0).unwrap();
         assert_eq!(turn, vec![1]);
     })
 }
@@ -213,17 +213,17 @@ fn test_fail_player1_tries_to_place_another_stone() {
         let (players, players_pair) 
             = get_sorted_peer(alice_pair, bob_pair);
         
-        let app_id = app_initiate(nonce1, players.clone(), 2, 2, 5, 5);
+        let session_id = app_initiate(nonce1, players.clone(), 2, 2, 5, 5);
         
-        place_stone_and_update_by_state_two_times(app_id, players.clone(), players_pair);
+        place_stone_and_update_by_state_two_times(session_id, players.clone(), players_pair);
 
-        let settle_finalized_time = MultiGomoku::get_settle_finalized_time(app_id).unwrap();
+        let settle_finalized_time = MultiGomoku::get_settle_finalized_time(session_id).unwrap();
         System::set_block_number(settle_finalized_time + 1);
 
         assert_ok!(
             MultiGomoku::update_by_action(
                 Origin::signed(players[0]),
-                app_id,
+                session_id,
                 vec![3, 12]
             )
         );
@@ -231,7 +231,7 @@ fn test_fail_player1_tries_to_place_another_stone() {
         assert_noop!(
             MultiGomoku::update_by_action(
                 Origin::signed(players[0]),
-                app_id,
+                session_id,
                 vec![4, 12]
             ),
             "Not your turn"
@@ -248,17 +248,17 @@ fn test_fail_player2_tries_to_place_stone_at_occupied_slot_3_12() {
         let (players, players_pair) 
             = get_sorted_peer(alice_pair, bob_pair);
         
-        let app_id = app_initiate(nonce1, players.clone(), 2, 2, 5, 5);
+        let session_id = app_initiate(nonce1, players.clone(), 2, 2, 5, 5);
         
-        place_stone_and_update_by_state_two_times(app_id, players.clone(), players_pair);
+        place_stone_and_update_by_state_two_times(session_id, players.clone(), players_pair);
 
-        let settle_finalized_time = MultiGomoku::get_settle_finalized_time(app_id).unwrap();
+        let settle_finalized_time = MultiGomoku::get_settle_finalized_time(session_id).unwrap();
         System::set_block_number(settle_finalized_time + 1);
 
         assert_ok!(
             MultiGomoku::update_by_action(
                 Origin::signed(players[0]),
-                app_id,
+                session_id,
                 vec![3, 12]
             )
         );
@@ -266,7 +266,7 @@ fn test_fail_player2_tries_to_place_stone_at_occupied_slot_3_12() {
         assert_noop!(
             MultiGomoku::update_by_action(
                 Origin::signed(players[1]),
-                app_id,
+                session_id,
                 vec![3, 12]
             ),
             "slot is occupied"
@@ -283,17 +283,17 @@ fn test_player2_places_stone_at_0_4_and_wins() {
         let (players, players_pair) 
             = get_sorted_peer(alice_pair, bob_pair);
         
-        let app_id = app_initiate(nonce, players.clone(), 2, 2, 5, 5);
+        let session_id = app_initiate(nonce, players.clone(), 2, 2, 5, 5);
         
-        place_stone_and_update_by_state_two_times(app_id, players.clone(), players_pair);
+        place_stone_and_update_by_state_two_times(session_id, players.clone(), players_pair);
 
-        let settle_finalized_time = MultiGomoku::get_settle_finalized_time(app_id).unwrap();
+        let settle_finalized_time = MultiGomoku::get_settle_finalized_time(session_id).unwrap();
         System::set_block_number(settle_finalized_time + 1);
 
         assert_ok!(
             MultiGomoku::update_by_action(
                 Origin::signed(players[0]),
-                app_id,
+                session_id,
                 vec![3, 12]
             )
         );
@@ -301,22 +301,22 @@ fn test_player2_places_stone_at_0_4_and_wins() {
         assert_ok!(
             MultiGomoku::update_by_action(
                 Origin::signed(players[1]),
-                app_id,
+                session_id,
                 vec![0, 4]
             )
         ); 
-        let turn = MultiGomoku::get_state(app_id, 0).unwrap();
+        let turn = MultiGomoku::get_state(session_id, 0).unwrap();
         assert_eq!(turn, vec![0]);
         assert_ok!(
             MultiGomoku::is_finalized(
                 Origin::signed(players[0]),
-                app_id
+                session_id
             )
         );
         assert_ok!(
             MultiGomoku::get_outcome(
                 Origin::signed(players[0]),
-                app_id,
+                session_id,
                 1
             )
         );
@@ -332,18 +332,18 @@ fn test_fail_not_player_places_stone() {
         let (players, players_pair) 
             = get_sorted_peer(alice_pair, bob_pair);
         
-        let app_id = app_initiate(nonce, players.clone(), 2, 2, 5, 5);
+        let session_id = app_initiate(nonce, players.clone(), 2, 2, 5, 5);
         
-        place_stone_and_update_by_state_two_times(app_id, players.clone(), players_pair);
+        place_stone_and_update_by_state_two_times(session_id, players.clone(), players_pair);
 
-        let settle_finalized_time = MultiGomoku::get_settle_finalized_time(app_id).unwrap();
+        let settle_finalized_time = MultiGomoku::get_settle_finalized_time(session_id).unwrap();
         System::set_block_number(settle_finalized_time + 1);
 
         let risa = account_key("Risa"); // not app player
         assert_noop!(
             MultiGomoku::update_by_action(
                 Origin::signed(risa),
-                app_id,
+                session_id,
                 vec![3, 12]
             ),
             "Not your turn"
@@ -360,17 +360,17 @@ fn test_fail_finalize_on_action_timeout_before_action_deadline() {
         let (players, players_pair) 
             = get_sorted_peer(alice_pair, bob_pair);
         
-        let app_id = app_initiate(nonce, players.clone(), 2, 2, 5, 5);
+        let session_id = app_initiate(nonce, players.clone(), 2, 2, 5, 5);
         
-        place_stone_and_update_by_state_two_times(app_id, players.clone(), players_pair);
+        place_stone_and_update_by_state_two_times(session_id, players.clone(), players_pair);
 
-        let settle_finalized_time = MultiGomoku::get_settle_finalized_time(app_id).unwrap();
+        let settle_finalized_time = MultiGomoku::get_settle_finalized_time(session_id).unwrap();
         System::set_block_number(settle_finalized_time + 1);
 
         assert_ok!(
             MultiGomoku::update_by_action(
                 Origin::signed(players[0]),
-                app_id,
+                session_id,
                 vec![3, 12]
             )
         );
@@ -378,7 +378,7 @@ fn test_fail_finalize_on_action_timeout_before_action_deadline() {
         assert_noop!(
             MultiGomoku::finalize_on_action_timeout(
                 Origin::signed(players[0]),
-                app_id
+                session_id
             ),
             "deadline does not passes"
         );
@@ -394,7 +394,7 @@ fn test_pass_finalize_on_action_timeout_after_action_deadline() {
         let (players, players_pair) 
             = get_sorted_peer(alice_pair, bob_pair);
         
-        let app_id = app_initiate(nonce, players.clone(), 2, 2, 5, 5);
+        let session_id = app_initiate(nonce, players.clone(), 2, 2, 5, 5);
         
         let none: u8 = 0;
         let black: u8 = 1;
@@ -413,7 +413,7 @@ fn test_pass_finalize_on_action_timeout_after_action_deadline() {
         board_state[102] = white;
         board_state[103] = white;
 
-        let state_proof = get_state_proof(3, board_state, 2, app_id, players_pair);
+        let state_proof = get_state_proof(3, board_state, 2, session_id, players_pair);
         assert_ok!(
             MultiGomoku::update_by_state(
                 Origin::signed(players[0]),
@@ -421,36 +421,36 @@ fn test_pass_finalize_on_action_timeout_after_action_deadline() {
             )
         );
 
-        let settle_finalized_time = MultiGomoku::get_settle_finalized_time(app_id).unwrap();
+        let settle_finalized_time = MultiGomoku::get_settle_finalized_time(session_id).unwrap();
         System::set_block_number(settle_finalized_time + 1);
 
         assert_ok!(
             MultiGomoku::update_by_action(
                 Origin::signed(players[1]),
-                app_id,
+                session_id,
                 vec![3, 12]
             )
         );
 
-        let deadline = MultiGomoku::get_action_deadline(app_id).unwrap();
+        let deadline = MultiGomoku::get_action_deadline(session_id).unwrap();
         System::set_block_number(deadline + 1);
 
         assert_ok!(
             MultiGomoku::finalize_on_action_timeout(
                 Origin::signed(players[0]),
-                app_id
+                session_id
             )
         );
         assert_ok!(
             MultiGomoku::is_finalized(
                 Origin::signed(players[0]),
-                app_id
+                session_id
             )
         );
         assert_ok!(
             MultiGomoku::get_outcome(
                 Origin::signed(players[0]),
-                app_id,
+                session_id,
                 2
             )
         );
@@ -479,22 +479,22 @@ fn app_initiate(
         initiate_request.clone())
     );
 
-    let app_id = MultiGomoku::get_app_id(initiate_request.nonce, initiate_request.players);
-    return app_id;
+    let session_id = MultiGomoku::get_session_id(initiate_request.nonce, initiate_request.players);
+    return session_id;
 }
 
 fn get_state_proof(
     seq: u128,
     board_state: Vec<u8>,
     timeout: BlockNumber,
-    app_id: H256,
+    session_id: H256,
     players_pair: Vec<sr25519::Pair>,
 ) -> StateProof<BlockNumber, H256, Signature> {
     let app_state = AppState {
         seq_num: seq,
         board_state: board_state,
         timeout: timeout,
-        app_id: app_id,
+        session_id: session_id,
     };
     let encoded = MultiGomoku::encode_app_state(app_state.clone());
     let sig_1 = players_pair[0].sign(&encoded);
@@ -508,7 +508,7 @@ fn get_state_proof(
 }
 
 fn place_stone_and_update_by_state(
-    app_id: H256, 
+    session_id: H256, 
     players: Vec<AccountId>, 
     players_pair: Vec<sr25519::Pair>
 ) {
@@ -529,7 +529,7 @@ fn place_stone_and_update_by_state(
     board_state[8] = white;
     board_state[9] = black;
 
-    let state_proof = get_state_proof(3, board_state, 2, app_id, players_pair);
+    let state_proof = get_state_proof(3, board_state, 2, session_id, players_pair);
     assert_ok!(
         MultiGomoku::update_by_state(
             Origin::signed(players[0]),
@@ -539,7 +539,7 @@ fn place_stone_and_update_by_state(
 }
 
 fn place_stone_and_update_by_state_two_times(
-    app_id: H256,
+    session_id: H256,
     players: Vec<AccountId>,
     players_pair: Vec<sr25519::Pair>
 ) {
@@ -548,7 +548,7 @@ fn place_stone_and_update_by_state_two_times(
     let white: u8 = 2;
     let black_player_id1 = 2;
 
-    place_stone_and_update_by_state(app_id, players.clone(), players_pair.clone());
+    place_stone_and_update_by_state(session_id, players.clone(), players_pair.clone());
 
     let mut board_state = vec![0; 228];
     board_state[0] = none; // winner
@@ -561,7 +561,7 @@ fn place_stone_and_update_by_state_two_times(
     board_state[101] = white;
     board_state[102] = white;
     board_state[103] = white;
-    let state_proof = get_state_proof(4, board_state, 2, app_id, players_pair);
+    let state_proof = get_state_proof(4, board_state, 2, session_id, players_pair);
     assert_ok!(
         MultiGomoku::update_by_state(
             Origin::signed(players[0]),
