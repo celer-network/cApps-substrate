@@ -162,32 +162,24 @@ decl_module!  {
             state_proof: StateProofOf<T>
         ) -> DispatchResult {
             ensure_signed(origin)?;
+
+            let session_id = state_proof.app_state.session_id;
+            let app_info = match AppInfoMap::<T>::get(session_id) {
+                Some(app) => app,
+                None => Err(Error::<T>::AppInfoNotExist)?,
+            };
+
             // submit ad settle off-chain state
-            let mut new_app_info: AppInfoOf<T> = Self::intend_settle(state_proof.clone())?;
+            let mut new_app_info: AppInfoOf<T> = Self::intend_settle(app_info, state_proof.clone())?;
             
             let state = state_proof.app_state.state;
             if state == 1 || state == 2 {
-                new_app_info = AppInfoOf::<T> {
-                    state: state,
-                    nonce: new_app_info.nonce,
-                    players: new_app_info.players,
-                    seq_num: new_app_info.seq_num,
-                    timeout: new_app_info.timeout,
-                    deadline: new_app_info.deadline,
-                    status: AppStatus::Finalized
-                }
+                new_app_info.state = state;
+                new_app_info.status = AppStatus::Finalized;
             } else {
-                new_app_info = AppInfoOf::<T> {
-                    state: state,
-                    nonce: new_app_info.nonce,
-                    players: new_app_info.players,
-                    seq_num: new_app_info.seq_num,
-                    timeout: new_app_info.timeout,
-                    deadline: new_app_info.deadline,
-                    status: new_app_info.status
-                }
+                new_app_info.state = state;
             }
-            let session_id = state_proof.app_state.session_id;
+            
             AppInfoMap::<T>::mutate(&session_id, |app_info| *app_info = Some(new_app_info.clone()));
 
             // Emit IntendSettle event
@@ -218,18 +210,15 @@ decl_module!  {
             action: u8
         ) -> DispatchResult {
             ensure_signed(origin)?;
-            let mut new_app_info: AppInfoOf<T> = Self::apply_action(session_id)?;
+            let app_info = match AppInfoMap::<T>::get(session_id) {
+                Some(app) => app,
+                None => Err(Error::<T>::AppInfoNotExist)?,
+            };
+
+            let mut new_app_info: AppInfoOf<T> = Self::apply_action(app_info)?;
         
             if action == 1 || action == 2 {
-                new_app_info = AppInfoOf::<T> {
-                    state: new_app_info.state,
-                    nonce: new_app_info.nonce,
-                    players: new_app_info.players,
-                    seq_num: new_app_info.seq_num,
-                    timeout: new_app_info.timeout,
-                    deadline: new_app_info.deadline,
-                    status: AppStatus::Finalized,
-                }
+                new_app_info.status = AppStatus::Finalized;
             } 
             AppInfoMap::<T>::mutate(&session_id, |app_info| *app_info = Some(new_app_info));
 
@@ -475,15 +464,13 @@ impl<T: Trait> Module<T> {
     /// Submit and settle offchain state
     ///
     /// Parameter:
+    /// `app_info`: Info of app state
     /// `state_proof`: Signed off-chain app state
     fn intend_settle(
+        mut app_info: AppInfoOf<T>,
         state_proof: StateProofOf<T>
     ) -> Result<AppInfoOf<T>, DispatchError> {
         let app_state = state_proof.app_state;
-        let app_info = match AppInfoMap::<T>::get(app_state.session_id) {
-            Some(app) => app,
-            None => Err(Error::<T>::AppInfoNotExist)?,
-        };
         let encoded = Self::encode_app_state(app_state.clone());
         Self::valid_signers(state_proof.sigs, &encoded, app_info.players.clone())?;
         ensure!(
@@ -499,65 +486,41 @@ impl<T: Trait> Module<T> {
             "invalid sequence number"
         );
 
-        let block_number = frame_system::Module::<T>::block_number();
-        let new_app_info = AppInfoOf::<T> {
-            state: app_info.state,
-            nonce: app_info.nonce,
-            players: app_info.players,
-            seq_num: app_state.seq_num,
-            timeout: app_info.timeout,
-            deadline: block_number + app_info.timeout,
-            status: AppStatus::Settle
-        };
+        app_info.seq_num = app_state.seq_num;
+        app_info.deadline = frame_system::Module::<T>::block_number() + app_info.timeout;
+        app_info.status = AppStatus::Settle;
 
-        Ok(new_app_info)
+        Ok(app_info)
     }
 
     /// Apply an action to the on-chain state
     ///
     /// Parameter:
-    /// `session_id`: Id of app
+    /// `app_info`: Info of app state
     fn apply_action(
-        session_id: T::Hash,
+        mut app_info: AppInfoOf<T>
     ) -> Result<AppInfoOf<T>, DispatchError> {
-        let app_info = match AppInfoMap::<T>::get(session_id) {
-            Some(app) => app,
-            None => Err(Error::<T>::AppInfoNotExist)?,
-        };
         ensure!(
             app_info.status != AppStatus::Finalized,
             "app state is finalized"
         );
 
         let block_number =  frame_system::Module::<T>::block_number();
-        let new_app_info: AppInfoOf<T>;
         if app_info.status == AppStatus::Settle && block_number > app_info.deadline {
-            new_app_info = AppInfoOf::<T> {
-                state:  app_info.state,
-                nonce: app_info.nonce,
-                players: app_info.players,
-                seq_num:  app_info.seq_num + 1,
-                timeout: app_info.timeout,
-                deadline: block_number + app_info.timeout,
-                status: AppStatus::Action
-            };
+            app_info.seq_num = app_info.seq_num + 1;
+            app_info.deadline = block_number + app_info.timeout;
+            app_info.status = AppStatus::Action;
         } else {
             ensure!(
                 app_info.status ==  AppStatus::Action,
                 "app not in action mode"
             );
-            new_app_info = AppInfoOf::<T> {
-                state: app_info.state,
-                nonce: app_info.nonce,
-                players: app_info.players,
-                seq_num:  app_info.seq_num + 1,
-                timeout: app_info.timeout,
-                deadline: block_number + app_info.timeout,
-                status: AppStatus::Action
-            };
+            app_info.seq_num = app_info.seq_num + 1;
+            app_info.deadline = block_number + app_info.timeout;
+            app_info.status = AppStatus::Action;
         }
 
-        Ok(new_app_info)
+        Ok(app_info)
     }
 
     /// Verify off-chain state signatures

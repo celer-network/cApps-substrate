@@ -196,8 +196,14 @@ decl_module! {
         ) -> DispatchResult {
             ensure_signed(origin)?;
 
+            let session_id = state_proof.app_state.session_id;
+            let gomoku_info = match SingleGomokuInfoMap::<T>::get(session_id) {
+                Some(info) => info,
+                None => Err(Error::<T>::SingleGomokuInfoNotExist)?,
+            };
+
             // submit and settle off-chain state
-            let mut gomoku_info: GomokuInfoOf<T> = Self::intend_settle(state_proof.clone())?;
+            let mut new_gomoku_info: GomokuInfoOf<T> = Self::intend_settle(gomoku_info, state_proof.clone())?;
 
             let _state = state_proof.app_state.board_state;
             ensure!(
@@ -207,7 +213,7 @@ decl_module! {
 
             let count = 0;
             if _state[0] != 0 {
-                gomoku_info = Self::win_game(_state[0], gomoku_info.clone())?;
+                new_gomoku_info = Self::win_game(_state[0], new_gomoku_info.clone())?;
             } else {
                 // advance to _state[2];
                 let mut _state_iter = _state.iter();
@@ -218,29 +224,13 @@ decl_module! {
                 let count = _state_iter.filter(|&x| *x != 0).count() as u8;
     
                 ensure!(
-                    count >= gomoku_info.gomoku_state.min_stone_offchain,
+                    count >= new_gomoku_info.gomoku_state.min_stone_offchain,
                     "not enough offchain stones"
                 );
             }
 
-            let new_gomoku_state = GomokuState {
-                board_state: Some(_state),
-                stone_num: Some(count),
-                stone_num_onchain: gomoku_info.gomoku_state.stone_num_onchain,
-                state_key: gomoku_info.gomoku_state.state_key,
-                min_stone_offchain: gomoku_info.gomoku_state.min_stone_offchain,
-                max_stone_onchain: gomoku_info.gomoku_state.max_stone_onchain,
-            };
-            let new_gomoku_info = GomokuInfoOf::<T> {
-                nonce: gomoku_info.nonce,
-                players: gomoku_info.players,
-                seq_num: gomoku_info.seq_num,
-                timeout: gomoku_info.timeout,
-                deadline: gomoku_info.deadline,
-                status: gomoku_info.status,
-                gomoku_state: new_gomoku_state,
-            };
-            let session_id = state_proof.app_state.session_id;
+            new_gomoku_info.gomoku_state.board_state = Some(_state);
+            new_gomoku_info.gomoku_state.stone_num = Some(count);
             SingleGomokuInfoMap::<T>::mutate(session_id, |info| *info = Some(new_gomoku_info.clone()));
             
             Self::deposit_event(RawEvent::IntendSettle(session_id, new_gomoku_info.seq_num));
@@ -269,14 +259,17 @@ decl_module! {
             action: Vec<u8>
         ) -> DispatchResult {
             let caller = ensure_signed(origin)?;
-            
-            // apply an action to the on-chain state
-            let gomoku_info = Self::apply_action(session_id)?;
-            let gomoku_state = gomoku_info.gomoku_state.clone();
-            let mut board_state = gomoku_info.gomoku_state.board_state.unwrap_or(vec![0; 227]);
+            let gomoku_info = match SingleGomokuInfoMap::<T>::get(session_id) {
+                Some(info) => info,
+                None => Err(Error::<T>::SingleGomokuInfoNotExist)?,
+            };
+            // apply an action to the on-chain state except for gomoku state
+            let mut new_gomoku_info = Self::apply_action(gomoku_info)?;
+            let gomoku_state = new_gomoku_info.gomoku_state.clone();
+            let mut board_state = new_gomoku_info.gomoku_state.board_state.unwrap_or(vec![0; 227]);
             let turn = board_state[1];
             ensure!(
-                caller == gomoku_info.players[turn as usize - 1],
+                caller == new_gomoku_info.players[turn as usize - 1],
                 "not your turn"    
             );
 
@@ -296,7 +289,7 @@ decl_module! {
             board_state[index] = turn;
             let new_stone_num = gomoku_state.stone_num.unwrap_or(0) + 1;
             let new_stone_num_onchain = gomoku_state.stone_num_onchain.unwrap_or(0) + 1;
-            let new_gomoku_state_1 = GomokuState {
+            new_gomoku_info.gomoku_state =  GomokuState {
                 board_state: Some(board_state.clone()),
                 stone_num: Some(new_stone_num),
                 stone_num_onchain: Some(new_stone_num_onchain),
@@ -304,16 +297,6 @@ decl_module! {
                 min_stone_offchain: gomoku_state.min_stone_offchain,
                 max_stone_onchain: gomoku_state.max_stone_onchain,
             };
-            let mut new_gomoku_info_1 = GomokuInfoOf::<T> {
-                nonce: gomoku_info.nonce,
-                players: gomoku_info.players.clone(),
-                seq_num: gomoku_info.seq_num,
-                timeout: gomoku_info.timeout,
-                deadline: gomoku_info.deadline,
-                status: gomoku_info.status.clone(),
-                gomoku_state: new_gomoku_state_1,
-            };
-            SingleGomokuInfoMap::<T>::mutate(session_id, |info| *info = Some(new_gomoku_info_1.clone()));
 
             // check if there is five-in-a-row including this new stone
             if Self::check_five(board_state.clone(), x, y, 1, 0) // horizontal bidirection
@@ -321,8 +304,8 @@ decl_module! {
                 || Self::check_five(board_state.clone(), x, y, 1, 1) // main-diagonal bidirection
                 || Self::check_five(board_state.clone(), x, y, 1, -1) // anti-diagonal bidirection
             {
-                new_gomoku_info_1 = Self::win_game(turn, new_gomoku_info_1)?;
-                SingleGomokuInfoMap::<T>::mutate(session_id, |info| *info = Some(new_gomoku_info_1));
+                new_gomoku_info = Self::win_game(turn, new_gomoku_info.clone())?;
+                SingleGomokuInfoMap::<T>::mutate(session_id, |info| *info = Some(new_gomoku_info));
                 return Ok(());
             }
 
@@ -331,7 +314,8 @@ decl_module! {
                     // all slots occupied, game is over with no winner
                     // set turn 0
                     board_state[1] = 0;
-                    let new_gomoku_state_2 = GomokuState {
+                    new_gomoku_info.status = AppStatus::Finalized;
+                    new_gomoku_info.gomoku_state = GomokuState {
                         board_state: Some(board_state),
                         stone_num: Some(new_stone_num),
                         stone_num_onchain: Some(new_stone_num_onchain),
@@ -339,16 +323,7 @@ decl_module! {
                         min_stone_offchain: gomoku_state.min_stone_offchain,
                         max_stone_onchain: gomoku_state.max_stone_onchain,
                     };
-                    let new_gomoku_info_2 = GomokuInfoOf::<T> {
-                        nonce: gomoku_info.nonce,
-                        players: gomoku_info.players,
-                        seq_num: gomoku_info.seq_num,
-                        timeout: gomoku_info.timeout,
-                        deadline: gomoku_info.deadline,
-                        status: AppStatus::Finalized,
-                        gomoku_state: new_gomoku_state_2,
-                    };
-                    SingleGomokuInfoMap::<T>::mutate(session_id, |info| *info = Some(new_gomoku_info_2.clone()));
+                    SingleGomokuInfoMap::<T>::mutate(session_id, |info| *info = Some(new_gomoku_info));
             } else {
                 // toggle turn and update game phase
                 if turn == 1 {
@@ -358,7 +333,7 @@ decl_module! {
                     // set turn 1
                     board_state[1] = 1;
                 }
-                let new_gomoku_state_2 = GomokuState {
+                new_gomoku_info.gomoku_state = GomokuState {
                     board_state: Some(board_state),
                     stone_num: Some(new_stone_num),
                     stone_num_onchain: Some(new_stone_num_onchain),
@@ -366,16 +341,7 @@ decl_module! {
                     min_stone_offchain: gomoku_state.min_stone_offchain,
                     max_stone_onchain: gomoku_state.max_stone_onchain,
                 };
-                let new_gomoku_info_2 = GomokuInfoOf::<T> {
-                    nonce: gomoku_info.nonce,
-                    players: gomoku_info.players,
-                    seq_num: gomoku_info.seq_num,
-                    timeout: gomoku_info.timeout,
-                    deadline: gomoku_info.deadline,
-                    status: gomoku_info.status,
-                    gomoku_state: new_gomoku_state_2,
-                };
-                SingleGomokuInfoMap::<T>::mutate(session_id, |info| *info = Some(new_gomoku_info_2.clone()));
+                SingleGomokuInfoMap::<T>::mutate(session_id, |info| *info = Some(new_gomoku_info));
             }
 
             Ok(())
@@ -636,15 +602,13 @@ impl<T: Trait> Module<T> {
     /// Submit and settle off-chain state
     ///
     /// Parameter:
+    /// `gomoku_info`: Info of gomoku state
     /// `state_proof`: Signed off-chain app state
     fn intend_settle(
+        mut gomoku_info: GomokuInfoOf<T>,
         state_proof: StateProofOf<T>
     ) -> Result<GomokuInfoOf<T>, DispatchError> {
         let app_state = state_proof.app_state;
-        let gomoku_info = match SingleGomokuInfoMap::<T>::get(app_state.session_id) {
-            Some(info) => info,
-            None => Err(Error::<T>::SingleGomokuInfoNotExist)?,
-        };
         let encoded = Self::encode_app_state(app_state.clone());
         Self::valid_signers(state_proof.sigs, &encoded, gomoku_info.players.clone())?;
         ensure!(
@@ -660,65 +624,41 @@ impl<T: Trait> Module<T> {
             "invalid sequence number"
         );
 
-        let block_number = frame_system::Module::<T>::block_number();
-        let new_gomoku_info = GomokuInfoOf::<T> {
-            nonce: gomoku_info.nonce,
-            players: gomoku_info.players,
-            seq_num: app_state.seq_num,
-            timeout: gomoku_info.timeout,
-            deadline: block_number + gomoku_info.timeout,
-            status: AppStatus::Settle,
-            gomoku_state: gomoku_info.gomoku_state,
-        };
+        gomoku_info.seq_num = app_state.seq_num;
+        gomoku_info.deadline = frame_system::Module::<T>::block_number() + gomoku_info.timeout;
+        gomoku_info.status = AppStatus::Settle;
 
-        Ok(new_gomoku_info)
+        Ok(gomoku_info)
     }
 
     /// Apply an action to the on-chain state
     ///
     /// Parameter:
-    /// `session_id`: Id of app
+    /// `gomoku_info`: Info of gomoku state
     fn apply_action(
-        session_id: T::Hash
+        mut gomoku_info: GomokuInfoOf<T>
     ) -> Result<GomokuInfoOf<T>, DispatchError> {
-        let gomoku_info = match SingleGomokuInfoMap::<T>::get(session_id) {
-            Some(info) => info,
-            None => Err(Error::<T>::SingleGomokuInfoNotExist)?,
-        };
         ensure!(
             gomoku_info.status != AppStatus::Finalized,
             "app state is finalized"
         );
 
         let block_number =  frame_system::Module::<T>::block_number();
-        let new_gomoku_info: GomokuInfoOf<T>;
         if gomoku_info.status == AppStatus::Settle && block_number > gomoku_info.deadline {
-            new_gomoku_info = GomokuInfoOf::<T> {
-                nonce: gomoku_info.nonce,
-                players: gomoku_info.players,
-                seq_num:  gomoku_info.seq_num + 1,
-                timeout: gomoku_info.timeout,
-                deadline: block_number + gomoku_info.timeout,
-                status: AppStatus::Action,
-                gomoku_state: gomoku_info.gomoku_state
-            };
+            gomoku_info.seq_num = gomoku_info.seq_num + 1;
+            gomoku_info.deadline = block_number + gomoku_info.timeout;
+            gomoku_info.status = AppStatus::Action;
         } else {
             ensure!(
                 gomoku_info.status ==  AppStatus::Action,
                 "app not in action mode"
             );
-            new_gomoku_info = GomokuInfoOf::<T> {
-                nonce: gomoku_info.nonce,
-                players: gomoku_info.players,
-                seq_num:  gomoku_info.seq_num + 1,
-                timeout: gomoku_info.timeout,
-                deadline: block_number + gomoku_info.timeout,
-                status: AppStatus::Action,
-                gomoku_state: gomoku_info.gomoku_state
-            };
+            gomoku_info.seq_num = gomoku_info.seq_num + 1;
+            gomoku_info.deadline = block_number + gomoku_info.timeout;
+            gomoku_info.status = AppStatus::Action;
         }
 
-        Ok(new_gomoku_info)        
+        Ok(gomoku_info)        
     }
 
     /// Verify off-chain state signatures
@@ -751,62 +691,27 @@ impl<T: Trait> Module<T> {
     /// `gomoku_info`: Info of gomoku state
     fn win_game(
         winner: u8, 
-        gomoku_info: GomokuInfoOf<T>,
+        mut gomoku_info: GomokuInfoOf<T>,
     ) -> Result<GomokuInfoOf<T>, DispatchError> {
         ensure!(
             u8::min_value() <= winner && winner <= 2,
             "invalid winner state"
         );
 
-        let gomoku_state = gomoku_info.gomoku_state;
-        let mut new_board_state = gomoku_state.board_state.unwrap_or(vec![0; 227]);
+        let mut new_board_state = gomoku_info.gomoku_state.board_state.unwrap_or(vec![0; 227]);
         // set winner
         new_board_state[0] = winner;
 
-        let new_gomoku_info: GomokuInfoOf<T>;
         if winner != 0 {// Game over
             // set turn 0
             new_board_state[1] = 0; 
-
-            let new_gomoku_state = GomokuState {
-                board_state: Some(new_board_state),
-                stone_num: gomoku_state.stone_num,
-                stone_num_onchain: gomoku_state.stone_num_onchain,
-                state_key: gomoku_state.state_key,
-                min_stone_offchain: gomoku_state.min_stone_offchain,
-                max_stone_onchain: gomoku_state.max_stone_onchain
-            };
-            
-            new_gomoku_info = GomokuInfoOf::<T> {
-                nonce: gomoku_info.nonce,
-                players: gomoku_info.players,
-                seq_num: gomoku_info.seq_num,
-                timeout: gomoku_info.timeout,
-                deadline: gomoku_info.deadline,
-                status: AppStatus::Finalized,
-                gomoku_state: new_gomoku_state,
-            };
+            gomoku_info.status = AppStatus::Finalized;
+            gomoku_info.gomoku_state.board_state = Some(new_board_state);
         } else {
-            let new_gomoku_state = GomokuState {
-                board_state: Some(new_board_state),
-                stone_num: gomoku_state.stone_num,
-                stone_num_onchain: gomoku_state.stone_num_onchain,
-                state_key: gomoku_state.state_key,
-                min_stone_offchain: gomoku_state.min_stone_offchain,
-                max_stone_onchain: gomoku_state.max_stone_onchain
-            };
-            new_gomoku_info = GomokuInfoOf::<T> {
-                nonce: gomoku_info.nonce,
-                players: gomoku_info.players,
-                seq_num: gomoku_info.seq_num,
-                timeout: gomoku_info.timeout,
-                deadline: gomoku_info.deadline,
-                status: gomoku_info.status,
-                gomoku_state: new_gomoku_state,
-            };
+            gomoku_info.gomoku_state.board_state = Some(new_board_state);
         }
         
-        return Ok(new_gomoku_info);
+        return Ok(gomoku_info);
     }
 
     /// Check if there is five in a row in agiven direction

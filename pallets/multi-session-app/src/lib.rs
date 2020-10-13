@@ -164,33 +164,25 @@ decl_module!  {
             origin,
             state_proof: StateProofOf<T>
         ) -> DispatchResult {
-            ensure_signed(origin)?;
-            // submit ad settle off-chain state
-            let mut new_session_info: SessionInfoOf<T> = Self::intend_settle(state_proof.clone())?;
+            ensure_signed(origin)?; 
+
+            let session_id = state_proof.app_state.session_id;
+            let session_info = match SessionInfoMap::<T>::get(session_id) {
+                Some(session) => session,
+                None => Err(Error::<T>::SessionInfoNotExist)?,
+            };
+            
+            // submit and settle off-chain state
+            let mut new_session_info = Self::intend_settle(session_info, state_proof.clone())?;
             
             let state = state_proof.app_state.state;
             if state == 1 || state == 2 {
-                new_session_info = SessionInfoOf::<T> {
-                    state: state,
-                    players: new_session_info.players,
-                    player_num: new_session_info.player_num,
-                    seq_num: new_session_info.seq_num,
-                    timeout: new_session_info.timeout,
-                    deadline: new_session_info.deadline,
-                    status: SessionStatus::Finalized
-                }
+                new_session_info.state = state;
+                new_session_info.status = SessionStatus::Finalized;
             } else {
-                new_session_info = SessionInfoOf::<T> {
-                    state: state,
-                    players: new_session_info.players,
-                    player_num: new_session_info.player_num,
-                    seq_num: new_session_info.seq_num,
-                    timeout: new_session_info.timeout,
-                    deadline: new_session_info.deadline,
-                    status: new_session_info.status
-                }
+                new_session_info.state = state;
             }
-            let session_id = state_proof.app_state.session_id;
+            
             SessionInfoMap::<T>::mutate(&session_id, |session_info| *session_info = Some(new_session_info.clone()));
 
             // emit IntendSettle event
@@ -221,18 +213,15 @@ decl_module!  {
             action: u8
         ) -> DispatchResult {
             ensure_signed(origin)?;
-            let mut new_session_info: SessionInfoOf<T> = Self::apply_action(session_id)?;
+            let session_info = match SessionInfoMap::<T>::get(session_id) {
+                Some(session) => session,
+                None => Err(Error::<T>::SessionInfoNotExist)?,
+            };
+
+            let mut new_session_info = Self::apply_action(session_info)?;
         
             if action == 1 || action == 2 {
-                new_session_info = SessionInfoOf::<T> {
-                    state: new_session_info.state,
-                    players: new_session_info.players,
-                    player_num: new_session_info.player_num,
-                    seq_num: new_session_info.seq_num,
-                    timeout: new_session_info.timeout,
-                    deadline: new_session_info.deadline,
-                    status: SessionStatus::Finalized,
-                }
+                new_session_info.status = SessionStatus::Finalized;
             } 
             SessionInfoMap::<T>::mutate(&session_id, |session_info| *session_info = Some(new_session_info));
 
@@ -479,15 +468,13 @@ impl<T: Trait> Module<T> {
     /// Submit and settle offchain state
     ///
     /// Parameter:
+    /// `session_info`: Info of session state
     /// `state_proof`: Signed off-chain app state
     fn intend_settle(
+        mut session_info: SessionInfoOf<T>,
         state_proof: StateProofOf<T>
     ) -> Result<SessionInfoOf<T>, DispatchError> {
         let app_state = state_proof.app_state;
-        let session_info = match SessionInfoMap::<T>::get(app_state.session_id) {
-            Some(session) => session,
-            None => Err(Error::<T>::SessionInfoNotExist)?,
-        };
         ensure!(
             state_proof.sigs.len() as u8 == session_info.player_num,
             "invalid number of players"
@@ -504,65 +491,41 @@ impl<T: Trait> Module<T> {
             "invalid sequence number"
         );
 
-        let block_number = frame_system::Module::<T>::block_number();
-        let new_session_info = SessionInfoOf::<T> {
-            state: session_info.state,
-            players: session_info.players,
-            player_num: session_info.player_num,
-            seq_num: app_state.seq_num,
-            timeout: session_info.timeout,
-            deadline: block_number + session_info.timeout,
-            status: SessionStatus::Settle
-        };
+        session_info.seq_num = app_state.seq_num;
+        session_info.deadline = frame_system::Module::<T>::block_number() + session_info.timeout;
+        session_info.status = SessionStatus::Settle;
 
-        Ok(new_session_info)
+        Ok(session_info)
     }
 
     /// Apply an action to the on-chain state
-     ///
+    ///
     /// Parameter:
-    /// `session_id`: Id of session
+    /// `session_info`: Info of session state
     fn apply_action(
-        session_id: T::Hash,
+        mut session_info: SessionInfoOf<T>,
     ) -> Result<SessionInfoOf<T>, DispatchError> {
-        let session_info = match SessionInfoMap::<T>::get(session_id) {
-            Some(session) => session,
-            None => Err(Error::<T>::SessionInfoNotExist)?,
-        };
         ensure!(
             session_info.status != SessionStatus::Finalized,
             "app state is finalized"
         );
 
-        let block_number =  frame_system::Module::<T>::block_number();
-        let new_session_info: SessionInfoOf<T>;
+        let block_number = frame_system::Module::<T>::block_number();
         if session_info.status == SessionStatus::Settle && block_number > session_info.deadline {
-            new_session_info = SessionInfoOf::<T> {
-                state: session_info.state,
-                players: session_info.players,
-                player_num: session_info.player_num,
-                seq_num:  session_info.seq_num + 1,
-                timeout: session_info.timeout,
-                deadline: block_number + session_info.timeout,
-                status: SessionStatus::Action
-            };
+            session_info.seq_num = session_info.seq_num + 1;
+            session_info.deadline = block_number + session_info.timeout;
+            session_info.status = SessionStatus::Action;
         } else {
             ensure!(
                 session_info.status ==  SessionStatus::Action,
                 "app not in action mode"
             );
-            new_session_info = SessionInfoOf::<T> {
-                state: session_info.state,
-                players: session_info.players,
-                player_num: session_info.player_num,
-                seq_num:  session_info.seq_num + 1,
-                timeout: session_info.timeout,
-                deadline: block_number + session_info.timeout,
-                status: SessionStatus::Action
-            };
+            session_info.seq_num = session_info.seq_num + 1;
+            session_info.deadline = block_number + session_info.timeout;
+            session_info.status = SessionStatus::Action;
         }
 
-        Ok(new_session_info)
+        Ok(session_info)
     }
 
     /// Verify off-chain state signatures
