@@ -29,18 +29,18 @@ pub fn is_finalized(_app_id: T::Hash, query: Option<Vec<u8>>) -> Result<bool, Di
 pub fn get_outcome(_app_id: T::Hash, query: Option<Vec<u8>>) -> Result<u32, DispatchError> {}
 ```
 
-You can implement CelerApp with Substrate runtime module or smart contract([ink!](https://github.com/paritytech/ink)).
+You can implement CelerApp with Substrate runtime module or smart contract.
 
 |  | boolean outcome runtime module | numeric outcome runtime module | boolean & numeric outcome smart contract |
 | ----------|----------| -------------| ---------------|
 | deploy option | initially deploy | initially deploy | initially deploy or virtual contract |
-|Ease of deployment & integration| △ | × |　○ |
-|Ease of development| △ | △ |  ○ | 
-|Level of customization | ○ | ○ |　× |
+|Ease of deployment & integration| medium | hard |　easy |
+|Ease of development| medium | medium |  easy | 
+|Level of customization | high | hig |　low |
 
-*initially deploy: Initially deployed once by the developer and can be repeatedly shared by all players. No additional code needs to be deployed when players want to dispute on-chain.
+- initially deploy: Initially deployed once by the developer and can be repeatedly shared by all players. No additional code needs to be deployed when players want to dispute on-chain.
 
-*virtual contract: The contract can also stay off-chain as a virtual counterfactually instantiated by involved parties. A virtual contract only needs to be deployed only needs to be deployed on-chain if someone wants to dispute, in which case ClerPay can find where to call the `is_finalized` and `get_outcome`APIs through a unique identifier computed by the hash of the virtual contract code, initial states, and a nonce.
+- virtual contract: The contract can also stay off-chain as a virtual counterfactually instantiated by involved parties. A virtual contract only needs to be deployed only needs to be deployed on-chain if someone wants to dispute, in which case ClerPay can find where to call the `is_finalized` and `get_outcome`APIs through a unique identifier computed by the hash of the virtual contract code, initial states, and a nonce.
 
 *Smart contract will support future.
 
