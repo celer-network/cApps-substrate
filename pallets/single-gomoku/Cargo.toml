@@ -1,9 +1,12 @@
 [package]
 authors = ['Celer']
 edition = '2018'
-license = 'MIT license'
 name = 'single-gomoku'
 version = '0.8.3'
+license = "MIT"
+repository = "https://github.com/celer-network/cApps-substrate"
+description = "Single Gomoku runtime module"
+
 [package.metadata.docs.rs]
 targets = ['x86_64-unknown-linux-gnu']
 
