@@ -36,7 +36,7 @@ You can implement CelerApp with Substrate runtime module or smart contract.
 | deploy option | initially deploy | initially deploy | initially deploy or virtual contract |
 |Ease of deployment & integration| medium | hard |　easy |
 |Ease of development| medium | medium |  easy | 
-|Level of customization | high | hig |　low |
+|Level of customization | high | high |　low |
 
 - initially deploy: Initially deployed once by the developer and can be repeatedly shared by all players. No additional code needs to be deployed when players want to dispute on-chain.
 
