@@ -1,9 +1,12 @@
 [package]
 authors = ['Celer']
 edition = '2018'
-license = 'MIT license'
 name = 'single-session-app'
 version = '0.8.4'
+license = "MIT"
+repository = "https://github.com/celer-network/cApps-substrate"
+description = "Single Session App runtime module"
+
 [package.metadata.docs.rs]
 targets = ['x86_64-unknown-linux-gnu']
 
