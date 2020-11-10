@@ -698,7 +698,7 @@ impl<T: Trait> Module<T> {
         let mut prev = &players[0];
         for i in 1..players.len() {
             ensure!(
-                prev < &players[1],
+                prev < &players[i],
                 "player is not ascending order"
             );
             prev = &players[i];
