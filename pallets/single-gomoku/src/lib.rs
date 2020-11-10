@@ -150,6 +150,10 @@ decl_module! {
                 initiate_request.players.len() == 2,
                 "invalid player length"
             );
+            ensure!(
+                initiate_request.players[0] < initiate_request.players[1],
+                "players is not asscending order"
+            );
 
             let gomoku_state = GomokuState {
                 board_state: None,
@@ -263,8 +267,10 @@ decl_module! {
                 Some(info) => info,
                 None => Err(Error::<T>::SingleGomokuInfoNotExist)?,
             };
+            
             // apply an action to the on-chain state except for gomoku state
             let mut new_gomoku_info = Self::apply_action(gomoku_info)?;
+
             let gomoku_state = new_gomoku_info.gomoku_state.clone();
             let mut board_state = new_gomoku_info.gomoku_state.board_state.unwrap_or(vec![0; 227]);
             let turn = board_state[1];
@@ -672,15 +678,12 @@ impl<T: Trait> Module<T> {
         encoded: &[u8],
         signers: Vec<T::AccountId>,
     ) -> DispatchResult {
-        let signature1 = &signatures[0];
-        let signature2 = &signatures[1];
-        ensure!(
-            (signature1.verify(encoded, &signers[0]) && signature2.verify(encoded, &signers[1]))
-                || (signature1.verify(encoded, &signers[1])
-                    && signature2.verify(encoded, &signers[0])),
-            "Check co-sigs failed"
-        );
-
+        for i in 0..2 {
+            ensure!(
+                &signatures[i].verify(encoded, &signers[i]),
+                "Check co-sigs failed"
+            );
+        };
         Ok(())
     }
 

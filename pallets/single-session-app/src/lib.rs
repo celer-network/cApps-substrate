@@ -125,6 +125,10 @@ decl_module!  {
                 AppInfoMap::<T>::contains_key(&session_id) == false,
                 "AppId alreads exists"
             );
+            ensure!(
+                initiate_request.players[0] < initiate_request.players[1], 
+                "players is not asscending order"
+            );
 
             let app_info = AppInfoOf::<T> {
                 state: 0,
@@ -215,6 +219,7 @@ decl_module!  {
                 None => Err(Error::<T>::AppInfoNotExist)?,
             };
 
+            // apply an action to the on-chain state
             let mut new_app_info: AppInfoOf<T> = Self::apply_action(app_info)?;
         
             if action == 1 || action == 2 {
@@ -534,15 +539,9 @@ impl<T: Trait> Module<T> {
         encoded: &[u8],
         signers: Vec<T::AccountId>,
     ) -> DispatchResult {
-        let signature1 = &signatures[0];
-        let signature2 = &signatures[1];
-        ensure!(
-            (signature1.verify(encoded, &signers[0]) && signature2.verify(encoded, &signers[1]))
-                || (signature1.verify(encoded, &signers[1])
-                    && signature2.verify(encoded, &signers[0])),
-            "Check co-sigs failed"
-        );
-
+        for i in 0..2 {
+            ensure!(&signatures[i].verify(encoded, &signers[i]), "Check co-sigs failed")
+        }
         Ok(())
     }
 
