@@ -200,12 +200,12 @@ decl_module! {
             state_proof: StateProofOf<T>
         ) -> DispatchResult {
             ensure_signed(origin)?;
-
             let session_id = state_proof.app_state.session_id;
             let gomoku_info = match MultiGomokuInfoMap::<T>::get(session_id) {
                 Some(info) => info,
                 None => Err(Error::<T>::MultiGomokuInfoNotExist)?,
             };
+
             // submit and settle off-chain state
             let mut new_gomoku_info: GomokuInfoOf<T> = Self::intend_settle(gomoku_info, state_proof.clone())?;
 
@@ -271,6 +271,7 @@ decl_module! {
 
             // apply an action to the on-chain state except for gomoku state
             let mut new_gomoku_info = Self::apply_action(gomoku_info)?;
+
             let gomoku_state = new_gomoku_info.gomoku_state.clone();
             let mut board_state = match gomoku_state.board_state {
                 Some(state) => state,
@@ -697,7 +698,7 @@ impl<T: Trait> Module<T> {
         let mut prev = &players[0];
         for i in 1..players.len() {
             ensure!(
-                prev < &players[1],
+                prev < &players[i],
                 "player is not ascending order"
             );
             prev = &players[i];
@@ -718,13 +719,11 @@ impl<T: Trait> Module<T> {
         signers: Vec<T::AccountId>,
     ) -> Result<(), DispatchError> {
         for i in 0..signers.len() {
-            let signature = &signatures[i];
             ensure!(
-                signature.verify(encoded, &signers[i]),
+                &signatures[i].verify(encoded, &signers[i]),
                 "Check co-sigs failed"
             );
         }
-
         Ok(())
     }
 

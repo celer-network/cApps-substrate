@@ -218,6 +218,7 @@ decl_module!  {
                 None => Err(Error::<T>::SessionInfoNotExist)?,
             };
 
+            // apply an action to the on-chain state
             let mut new_session_info = Self::apply_action(session_info)?;
         
             if action == 1 || action == 2 {
@@ -267,7 +268,7 @@ decl_module!  {
                 return Ok(());
             }
 
-            let new_session_info = SessionInfoOf::<T> {
+            let new_session_info = SessionInfo {
                 state: session_info.state,
                 players: session_info.players,
                 player_num: session_info.player_num,
@@ -540,9 +541,8 @@ impl<T: Trait> Module<T> {
         signers: Vec<T::AccountId>,
     ) -> Result<(), DispatchError> {
         for i in 0..signers.len() {
-            let signature = &signatures[i];
             ensure!(
-                signature.verify(encoded, &signers[i]),
+                &signatures[i].verify(encoded, &signers[i]),
                 "Check co-sigs failed"
             );
         }
@@ -560,7 +560,7 @@ impl<T: Trait> Module<T> {
         let mut prev = &players[0];
         for i in 1..players.len() {
             ensure!(
-                prev < &players[1],
+                prev < &players[i],
                 "player is not ascending order"
             );
             prev = &players[i];
