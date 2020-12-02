@@ -81,6 +81,14 @@ pub type SessionInfoOf<T> = SessionInfo<
     <T as system::Trait>::BlockNumber,
 >;
 
+#[derive(PartialEq, Eq, Encode, Decode, RuntimeDebug)]
+pub struct MultiSessionArgsQueryOutcome<Hash> {
+    pub session_id: Hash,
+    pub query_data: u8 
+}
+
+pub type MultiSessionArgsQueryOutcomeOf<T> = MultiSessionArgsQueryOutcome<<T as system::Trait>::Hash>;
+
 pub const MULTI_SESSION_APP_ID: ModuleId = ModuleId(*b"_multi__");
 
 pub trait Trait: system::Trait {
@@ -248,7 +256,7 @@ decl_module!  {
             session_id: T::Hash
         ) -> DispatchResult {
             ensure_signed(origin)?;
-            let session_info = match SessionInfoMap::<T>::get(session_id) {
+            let mut session_info = match SessionInfoMap::<T>::get(session_id) {
                 Some(session) => session,
                 None => Err(Error::<T>::SessionInfoNotExist)?,
             };
@@ -268,85 +276,11 @@ decl_module!  {
                 return Ok(());
             }
 
-            let new_session_info = SessionInfo {
-                state: session_info.state,
-                players: session_info.players,
-                player_num: session_info.player_num,
-                seq_num: session_info.seq_num,
-                timeout: session_info.timeout,
-                deadline: session_info.deadline,
-                status: SessionStatus::Finalized,
-            };
-            SessionInfoMap::<T>::mutate(&session_id, |session_info| *session_info = Some(new_session_info));
+            SessionInfoMap::<T>::mutate(&session_id, |info| {
+                session_info.status = SessionStatus::Finalized;
+                *info = Some(session_info)
+            });
 
-            Ok(())
-        }
-
-        /// Check whether session is finalized
-        ///
-        /// Parameters:
-        /// - `session_id`: Id of session
-        ///
-        /// # <weight>
-        /// ## Weight
-        /// - Complexity: `O(1)`
-        ///   - 1 storage read `SessionInfoMap`
-        /// - Based on benchmark;
-        ///     9.118　µs
-        /// # </weight>
-        #[weight = 10_000_000 + T::DbWeight::get().reads(1)]
-        pub fn is_finalized(
-            origin,
-            session_id: T::Hash,
-        ) -> DispatchResult {
-            ensure_signed(origin)?;
-            let session_info = match SessionInfoMap::<T>::get(session_id) {
-                Some(session) => session,
-                None => return Err(Error::<T>::SessionInfoNotExist)?,
-            };
-
-            // If session is not finlized, return DispatchError::Other("NotFinalized")
-            ensure!(
-                session_info.status == SessionStatus::Finalized,
-                "NotFinalized"
-            );
-
-            // If session is finalized, return Ok(())
-            Ok(())
-        }
-
-        /// Get the session outcome
-        /// 
-        /// Parameters:
-        /// - `session_id`: Id of session
-        /// - `query`: query param
-        ///
-        /// # <weight>
-        /// ## Weight
-        /// - Complexity: `O(1)`
-        ///   - 1 storage read `SessionInfoMap`
-        /// - Based on benchmark;
-        ///     10.27　µs
-        /// # </weight>
-        #[weight = 11_000_000 + T::DbWeight::get().reads(1)]
-        pub fn get_outcome(
-            origin,
-            session_id: T::Hash,
-            query: u8
-        ) -> DispatchResult {
-            ensure_signed(origin)?;
-            let session_info = match SessionInfoMap::<T>::get(session_id) {
-                Some(session) => session,
-                None => Err(Error::<T>::SessionInfoNotExist)?,
-            };
-
-            // If outcome is false, return DispatchError::Other("FalseOutcome")
-            ensure!(
-                session_info.state == query,
-                "FalseOutcome"
-            );
-
-            // If outcome is true, return Ok(())
             Ok(())
         }
     }
@@ -365,10 +299,62 @@ decl_error! {
     pub enum Error for Module<T: Trait> {
         // SessionInfo is not exist
         SessionInfoNotExist,
+        // A scale-codec encoded value can not decode correctly
+        MustBeDecodable
     }
 }
 
 impl<T: Trait> Module<T> {
+    /// Query whether multi session app is finalized
+    ///
+    /// Parameter:
+    /// `args_query_finalization`: encoded session_id
+    ///
+    /// Return the boolean value 
+    pub fn is_finalized(
+        args_query_finalization: Vec<u8>, 
+    ) -> Result<bool, DispatchError> {
+        let session_id: T::Hash = Decode::decode(&mut &args_query_finalization[..])
+            .map_err(|_| Error::<T>::MustBeDecodable)?;
+        let app_info = match SessionInfoMap::<T>::get(session_id) {
+            Some(app) => app,
+            None => return Err(Error::<T>::SessionInfoNotExist)?,
+        };
+
+        if app_info.status == SessionStatus::Finalized {
+            // Gomoku app is finalized
+            return Ok(true);
+        } else {
+            // Gomoku app is not finalized
+            return Ok(false);
+        }   
+    }
+
+    /// Query the multi sesion app outcome
+    /// 
+    /// Parameter:
+    /// `args_query_outcome`: enoced MultiSessionArgsQueryOutcome
+    ///
+    /// Return the encoded boolean value
+     pub fn get_outcome(
+        args_query_outcome: Vec<u8>,
+    ) -> Result<Vec<u8>, DispatchError> {
+        let query_outcome: MultiSessionArgsQueryOutcomeOf<T> = MultiSessionArgsQueryOutcome::decode(&mut &args_query_outcome[..])
+            .map_err(|_| Error::<T>::MustBeDecodable)?;
+        let app_info = match SessionInfoMap::<T>::get(query_outcome.session_id) {
+            Some(app) => app,
+            None => Err(Error::<T>::SessionInfoNotExist)?,
+        };
+
+        if app_info.state == query_outcome.query_data {
+            // If outcome is true, return encoded true value
+            return Ok(true.encode());
+        } else {
+            // If outcome is false, return encoded false value
+            return Ok(false.encode());
+        }
+    }
+
     /// Get Id of session
     ///
     /// Parameters:

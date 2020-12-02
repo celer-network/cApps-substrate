@@ -307,18 +307,19 @@ fn test_player2_places_stone_at_0_4_and_wins() {
         ); 
         let turn = MultiGomoku::get_state(session_id, 0).unwrap();
         assert_eq!(turn, vec![0]);
-        assert_ok!(
-            MultiGomoku::is_finalized(
-                Origin::signed(players[0]),
-                session_id
-            )
+       
+        assert_eq!(
+            MultiGomoku::is_finalized(session_id.encode()).unwrap(), 
+            true,    
         );
-        assert_ok!(
-            MultiGomoku::get_outcome(
-                Origin::signed(players[0]),
-                session_id,
-                1
-            )
+        
+        let args_query_outcome = MultiGomokuArgsQueryOutcome {
+            session_id: session_id,
+            query_data: 1
+        };
+        assert_eq!(
+            MultiGomoku::get_outcome(args_query_outcome.encode()).unwrap(), 
+            true.encode()    
         );
     })
 }
@@ -441,18 +442,19 @@ fn test_pass_finalize_on_action_timeout_after_action_deadline() {
                 session_id
             )
         );
-        assert_ok!(
-            MultiGomoku::is_finalized(
-                Origin::signed(players[0]),
-                session_id
-            )
+
+        assert_eq!(
+            MultiGomoku::is_finalized(session_id.encode()).unwrap(), 
+            true,    
         );
-        assert_ok!(
-            MultiGomoku::get_outcome(
-                Origin::signed(players[0]),
-                session_id,
-                2
-            )
+        
+        let args_query_outcome = MultiGomokuArgsQueryOutcome {
+            session_id: session_id,
+            query_data: 2
+        };
+        assert_eq!(
+            MultiGomoku::get_outcome(args_query_outcome.encode()).unwrap(), 
+            true.encode()    
         );
     })
 }

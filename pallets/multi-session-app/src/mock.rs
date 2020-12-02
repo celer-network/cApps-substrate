@@ -32,7 +32,7 @@ impl_outer_dispatch! {
     pub enum Call for TestRuntime where origin: Origin {
         frame_system::System,
         pallet_balances::Balances,
-        multi_app::MultiApp,
+        multi_app::MultiSessionApp,
     }
 }
 
@@ -124,7 +124,7 @@ impl Trait for TestRuntime {
     type Signature = sr25519::Signature;
 }
 
-pub type MultiApp = Module<TestRuntime>;
+pub type MultiSessionApp = Module<TestRuntime>;
 pub type System = frame_system::Module<TestRuntime>;
 type Balances = pallet_balances::Module<TestRuntime>;
 
