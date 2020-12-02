@@ -257,7 +257,7 @@ decl_module!  {
             session_id: T::Hash
         ) -> DispatchResult {
             ensure_signed(origin)?;
-            let app_info = match AppInfoMap::<T>::get(session_id) {
+            let mut app_info = match AppInfoMap::<T>::get(session_id) {
                 Some(app) => app,
                 None => Err(Error::<T>::AppInfoNotExist)?,
             };
@@ -277,16 +277,10 @@ decl_module!  {
                 return Ok(());
             }
 
-            let new_app_info = AppInfoOf::<T> {
-                state: app_info.state,
-                nonce: app_info.nonce,
-                players: app_info.players,
-                seq_num: app_info.seq_num,
-                timeout: app_info.timeout,
-                deadline: app_info.deadline,
-                status: AppStatus::Finalized,
-            };
-            AppInfoMap::<T>::mutate(&session_id, |app_info| *app_info = Some(new_app_info));
+            AppInfoMap::<T>::mutate(&session_id, |info| {
+                app_info.status = AppStatus::Finalized;
+                *info = Some(app_info)
+            });
 
             Ok(())
         }

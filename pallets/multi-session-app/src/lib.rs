@@ -256,7 +256,7 @@ decl_module!  {
             session_id: T::Hash
         ) -> DispatchResult {
             ensure_signed(origin)?;
-            let session_info = match SessionInfoMap::<T>::get(session_id) {
+            let mut session_info = match SessionInfoMap::<T>::get(session_id) {
                 Some(session) => session,
                 None => Err(Error::<T>::SessionInfoNotExist)?,
             };
@@ -276,16 +276,10 @@ decl_module!  {
                 return Ok(());
             }
 
-            let new_session_info = SessionInfo {
-                state: session_info.state,
-                players: session_info.players,
-                player_num: session_info.player_num,
-                seq_num: session_info.seq_num,
-                timeout: session_info.timeout,
-                deadline: session_info.deadline,
-                status: SessionStatus::Finalized,
-            };
-            SessionInfoMap::<T>::mutate(&session_id, |session_info| *session_info = Some(new_session_info));
+            SessionInfoMap::<T>::mutate(&session_id, |info| {
+                session_info.status = SessionStatus::Finalized;
+                *info = Some(session_info)
+            });
 
             Ok(())
         }

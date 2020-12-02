@@ -241,9 +241,11 @@ decl_module! {
                 );
             }
 
-            new_gomoku_info.gomoku_state.board_state = Some(_state);
-            new_gomoku_info.gomoku_state.stone_num = Some(count);
-            SingleGomokuInfoMap::<T>::mutate(session_id, |info| *info = Some(new_gomoku_info.clone()));
+            SingleGomokuInfoMap::<T>::mutate(session_id, |info| {
+                new_gomoku_info.gomoku_state.board_state = Some(_state);
+                new_gomoku_info.gomoku_state.stone_num = Some(count);
+                *info = Some(new_gomoku_info.clone())
+            });
             
             Self::deposit_event(RawEvent::IntendSettle(session_id, new_gomoku_info.seq_num));
 
@@ -303,14 +305,9 @@ decl_module! {
             board_state[index] = turn;
             let new_stone_num = gomoku_state.stone_num.unwrap_or(0) + 1;
             let new_stone_num_onchain = gomoku_state.stone_num_onchain.unwrap_or(0) + 1;
-            new_gomoku_info.gomoku_state =  GomokuState {
-                board_state: Some(board_state.clone()),
-                stone_num: Some(new_stone_num),
-                stone_num_onchain: Some(new_stone_num_onchain),
-                state_key: gomoku_state.state_key.clone(),
-                min_stone_offchain: gomoku_state.min_stone_offchain,
-                max_stone_onchain: gomoku_state.max_stone_onchain,
-            };
+            new_gomoku_info.gomoku_state.board_state = Some(board_state.clone());
+            new_gomoku_info.gomoku_state.stone_num = Some(new_stone_num);
+            new_gomoku_info.gomoku_state.stone_num_onchain = Some(new_stone_num_onchain);
 
             // check if there is five-in-a-row including this new stone
             if Self::check_five(board_state.clone(), x, y, 1, 0) // horizontal bidirection
@@ -325,19 +322,16 @@ decl_module! {
 
             if new_stone_num == 225 
                 || new_stone_num_onchain as u8 > gomoku_state.max_stone_onchain {
-                    // all slots occupied, game is over with no winner
-                    // set turn 0
-                    board_state[1] = 0;
-                    new_gomoku_info.status = AppStatus::Finalized;
-                    new_gomoku_info.gomoku_state = GomokuState {
-                        board_state: Some(board_state),
-                        stone_num: Some(new_stone_num),
-                        stone_num_onchain: Some(new_stone_num_onchain),
-                        state_key: gomoku_state.state_key,
-                        min_stone_offchain: gomoku_state.min_stone_offchain,
-                        max_stone_onchain: gomoku_state.max_stone_onchain,
-                    };
-                    SingleGomokuInfoMap::<T>::mutate(session_id, |info| *info = Some(new_gomoku_info));
+                    SingleGomokuInfoMap::<T>::mutate(session_id, |info| {
+                        // all slots occupied, game is over with no winner
+                        // set turn 0
+                        board_state[1] = 0;
+                        new_gomoku_info.status = AppStatus::Finalized;
+                        new_gomoku_info.gomoku_state.board_state = Some(board_state);
+                        new_gomoku_info.gomoku_state.stone_num = Some(new_stone_num);
+                        new_gomoku_info.gomoku_state.stone_num_onchain = Some(new_stone_num_onchain);
+                        *info = Some(new_gomoku_info)
+                    });
             } else {
                 // toggle turn and update game phase
                 if turn == 1 {
@@ -347,15 +341,13 @@ decl_module! {
                     // set turn 1
                     board_state[1] = 1;
                 }
-                new_gomoku_info.gomoku_state = GomokuState {
-                    board_state: Some(board_state),
-                    stone_num: Some(new_stone_num),
-                    stone_num_onchain: Some(new_stone_num_onchain),
-                    state_key: gomoku_state.state_key,
-                    min_stone_offchain: gomoku_state.min_stone_offchain,
-                    max_stone_onchain: gomoku_state.max_stone_onchain,
-                };
-                SingleGomokuInfoMap::<T>::mutate(session_id, |info| *info = Some(new_gomoku_info));
+            
+                SingleGomokuInfoMap::<T>::mutate(session_id, |info| {
+                    new_gomoku_info.gomoku_state.board_state = Some(board_state);
+                    new_gomoku_info.gomoku_state.stone_num = Some(new_stone_num);
+                    new_gomoku_info.gomoku_state.stone_num_onchain = Some(new_stone_num_onchain);
+                    *info = Some(new_gomoku_info)
+                });
             }
 
             Ok(())
