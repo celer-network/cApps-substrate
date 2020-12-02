@@ -24,7 +24,7 @@ pub fn get_outcome(args_query_outcome: Vec<u8>) -> Result<Vec<u8>, DispatchError
 // If app is finalized, return true value
 // else, return false value
 // dev: args_query_finalization is encoded value and you can take any type as an argument.
-pub fn is_finalized(args_query_finalization: Option<Vec<u8>>) -> Result<bool, DispatchError> {}
+pub fn is_finalized(args_query_finalization: Vec<u8>) -> Result<bool, DispatchError> {}
 
 // return encoded u32 value
 // dev: args_query_outcome is encoded value and you can take any type as an argument.
