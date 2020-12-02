@@ -59,18 +59,18 @@ fn test_pass_update_by_state_and_player_2_win() {
                 state_proof
             )
         );
-        assert_ok!(
-            SingleGomoku::is_finalized(
-                Origin::signed(players[0]),
-                session_id
-            )
+        assert_eq!(
+            SingleGomoku::is_finalized(session_id.encode()).unwrap(),
+            true,
         );
-        assert_ok!(
-            SingleGomoku::get_outcome(
-                Origin::signed(players[0]),
-                session_id,
-                2
-            )
+
+        let args_query_outcome = SingleGomokuArgsQueryOutcome {
+            session_id: session_id,
+            query_data: 2
+        };
+        assert_eq!(
+            SingleGomoku::get_outcome(args_query_outcome.encode()).unwrap(), 
+            true.encode()   
         );
     })
 }
@@ -415,18 +415,19 @@ fn test_player1_places_a_stone_at_0_4_and_wins() {
         );
         let turn = SingleGomoku::get_state(session_id, 0).unwrap();
         assert_eq!(turn, vec![0]);
-        assert_ok!(
-            SingleGomoku::is_finalized(
-                Origin::signed(players[0]),
-                session_id
-            )
+
+        assert_eq!(
+            SingleGomoku::is_finalized(session_id.encode()).unwrap(),
+            true,
         );
-        assert_ok!(
-            SingleGomoku::get_outcome(
-                Origin::signed(players[0]),
-                session_id,
-                1
-            )
+
+        let args_query_outcome = SingleGomokuArgsQueryOutcome {
+            session_id: session_id,
+            query_data: 1
+        };
+        assert_eq!(
+            SingleGomoku::get_outcome(args_query_outcome.encode()).unwrap(), 
+            true.encode()    
         );
     })
 }
@@ -531,18 +532,18 @@ fn test_pass_finalize_on_action_timeout_after_action_deadline() {
                 session_id
             )
         );
-        assert_ok!(
-            SingleGomoku::is_finalized(
-                Origin::signed(players[0]),
-                session_id
-            )
+        assert_eq!(
+            SingleGomoku::is_finalized(session_id.encode()).unwrap(),
+            true,
         );
-        assert_ok!(
-            SingleGomoku::get_outcome(
-                Origin::signed(players[0]),
-                session_id,
-                1
-            )
+
+        let args_query_outcome = SingleGomokuArgsQueryOutcome {
+            session_id: session_id,
+            query_data: 1
+        };
+        assert_eq!(
+            SingleGomoku::get_outcome(args_query_outcome.encode()).unwrap(), 
+            true.encode()    
         );
     })
 }

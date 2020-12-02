@@ -100,6 +100,14 @@ struct GomokuState {
     max_stone_onchain: u8, // maximal number of stones after go onchain
 }
 
+#[derive(PartialEq, Eq, Encode, Decode, RuntimeDebug)]
+pub struct SingleGomokuArgsQueryOutcome<Hash> {
+    pub session_id: Hash,
+    pub query_data: u8
+}
+
+pub type SingleGomokuArgsQueryOutcomeOf<T> = SingleGomokuArgsQueryOutcome<<T as system::Trait>::Hash>;
+
 pub const SINGLE_GOMOKU_ID: ModuleId = ModuleId(*b"s_gomoku");
 
 pub trait Trait: system::Trait {
@@ -407,78 +415,6 @@ decl_module! {
 
             Ok(())
         }
-
-        /// Check whether app is finalized
-        ///
-        /// Parameters:
-        /// - `session_id`: Id of app
-        ///
-        /// # <weight>
-        /// ## Weight
-        /// - Complexity: `O(1)`
-        ///   - 1 storage read `GomokuInfoMap`
-        /// - Based on benchmark;
-        ///     13.7　µs
-        /// # </weight>
-        #[weight = 14_000_000 + T::DbWeight::get().reads(1)]
-        pub fn is_finalized(
-            origin,
-            session_id: T::Hash
-        ) -> DispatchResult {
-            ensure_signed(origin)?;
-            let gomoku_info = match SingleGomokuInfoMap::<T>::get(session_id) {
-                Some(info) => info,
-                None => Err(Error::<T>::SingleGomokuInfoNotExist)?,
-            };
-
-            // If app is not finalized, return DispatchError::Other("NotFinalized")
-            ensure!(
-                gomoku_info.status ==  AppStatus::Finalized,
-                "NotFinalized"
-            );
-
-            // If app is finalized, return Ok(())
-            Ok(())
-        }
-
-        /// Get the app outcome
-        /// 
-        /// Parameters:
-        /// - `session_id`: Id of app
-        /// - `query`: query param
-        ///
-        /// # <weight>
-        /// ## Weight
-        /// - Complexity: `O(1)`
-        ///   - 1 storage read `GomokuInfoMap`
-        /// - Based on benchmark;
-        ///     12.06　µs
-        /// # </weight>
-        #[weight = 12_000_000 + T::DbWeight::get().reads(1)]
-        pub fn get_outcome(
-            origin,
-            session_id: T::Hash,
-            query: u8,
-        ) -> DispatchResult {
-            ensure_signed(origin)?;
-            let gomoku_info = match SingleGomokuInfoMap::<T>::get(session_id) {
-                Some(info) => info,
-                None => Err(Error::<T>::SingleGomokuInfoNotExist)?,
-            };
-            let board_state = match gomoku_info.gomoku_state.board_state {
-                Some(state) => state,
-                None => Err(Error::<T>::EmptyBoardState)?,
-            };
-            
-            // If outcome is false, return DispatchError::Other("FalseOutcome")
-            ensure!(
-                board_state[0] == query,
-                "FalseOutcome"
-            );
-            
-            // If outcome is true, return Ok(())
-            Ok(())
-        }
     }
 }
 
@@ -497,10 +433,66 @@ decl_error! {
         SingleGomokuInfoNotExist,
         // BoardState is empty
         EmptyBoardState,
+        // A scale-codec encoded value can not decode correctly
+        MustBeDecodable
     }
 }
 
 impl<T: Trait> Module<T> {
+    /// Query whether single gomoku app is finalized
+    ///
+    /// Parameter:
+    /// - `args_query_finalization`: encoded session_id
+    ///
+    /// Return the boolean value 
+    pub fn is_finalized(
+        args_query_finalization: Vec<u8>, 
+    ) -> Result<bool, DispatchError> {
+        let session_id: T::Hash = Decode::decode(&mut &args_query_finalization[..])
+            .map_err(|_| Error::<T>::MustBeDecodable)?;
+        let gomoku_info = match SingleGomokuInfoMap::<T>::get(session_id) {
+            Some(info) => info,
+            None => Err(Error::<T>::SingleGomokuInfoNotExist)?, 
+        };
+
+        if gomoku_info.status == AppStatus::Finalized {
+            // Gomoku app is finalized
+            return Ok(true);
+        } else {
+            // Gomoku app is not finalized
+            return Ok(false);
+        }   
+    }
+
+    /// Query the single gomoku app outcome
+    /// 
+    /// Parameter:
+    /// `args_query_outcome`: enoced SingleGomokuArgsQueryOutcome
+    ///
+    /// Return the encoded boolean value
+    pub fn get_outcome(
+        args_query_outcome: Vec<u8>,
+    ) -> Result<Vec<u8>, DispatchError> {
+        let query_outcome: SingleGomokuArgsQueryOutcomeOf<T> = SingleGomokuArgsQueryOutcome::decode(&mut &args_query_outcome[..])
+            .map_err(|_| Error::<T>::MustBeDecodable)?;
+        let gomoku_info = match SingleGomokuInfoMap::<T>::get(query_outcome.session_id) {
+            Some(info) => info,
+            None => Err(Error::<T>::SingleGomokuInfoNotExist)?,
+        };
+        let board_state = match gomoku_info.gomoku_state.board_state {
+            Some(state) => state,
+            None => Err(Error::<T>::EmptyBoardState)?,
+        };
+
+        if board_state[0] == query_outcome.query_data {
+            // If outcome is true, return encoded true value
+            return Ok(true.encode());
+        } else {
+            // If outcome is false, return encoded false value
+            return Ok(false.encode());
+        }
+    }
+
     /// Get Id of app
     ///
     /// Parameters:

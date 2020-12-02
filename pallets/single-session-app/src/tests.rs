@@ -17,7 +17,7 @@ fn test_pass_initiate() {
             timeout: 2,
         };
         
-        assert_ok!(SingleApp::app_initiate(
+        assert_ok!(SingleSessionApp::app_initiate(
             Origin::signed(players_peers[0]),
             initiate_request)
         );
@@ -38,14 +38,14 @@ fn test_fail_update_by_action() {
             timeout: 2,
         };
         
-        assert_ok!(SingleApp::app_initiate(
+        assert_ok!(SingleSessionApp::app_initiate(
             Origin::signed(players_peers[0]),
             initiate_request.clone()
         ));
 
-        let session_id = SingleApp::get_session_id(initiate_request.nonce, initiate_request.players.clone());
+        let session_id = SingleSessionApp::get_session_id(initiate_request.nonce, initiate_request.players.clone());
         assert_noop!(
-            SingleApp::update_by_action(
+            SingleSessionApp::update_by_action(
             Origin::signed(players_peers[0]),
             session_id,
             1),
@@ -68,15 +68,15 @@ fn test_pass_update_by_state_state_is_5() {
             players: players_peers.clone(),
             timeout: 2,
         };
-        assert_ok!(SingleApp::app_initiate(
+        assert_ok!(SingleSessionApp::app_initiate(
             Origin::signed(players_peers[0]),
             initiate_request.clone()
         ));
 
-        let session_id = SingleApp::get_session_id(initiate_request.nonce, initiate_request.players.clone());
+        let session_id = SingleSessionApp::get_session_id(initiate_request.nonce, initiate_request.players.clone());
         let state_proof = get_state_proof(0, 2, 5, 2, session_id, players_pair);
         assert_ok!(
-            SingleApp::update_by_state(
+            SingleSessionApp::update_by_state(
                 Origin::signed(players_peers[0]),
                 state_proof
             )
@@ -85,7 +85,7 @@ fn test_pass_update_by_state_state_is_5() {
         let expected_event = TestEvent::single_app(RawEvent::IntendSettle(session_id, 2));       
         assert!(System::events().iter().any(|a| a.event == expected_event)); 
 
-        let app_info = SingleApp::app_info(session_id).unwrap();
+        let app_info = SingleSessionApp::app_info(session_id).unwrap();
         let expected_app_info = AppInfo {
             state: 5,
             nonce: 0,
@@ -97,19 +97,18 @@ fn test_pass_update_by_state_state_is_5() {
         };
         assert_eq!(expected_app_info, app_info);
 
-        assert_ok!(
-            SingleApp::get_outcome(
-                Origin::signed(players_peers[0]),
-                session_id,
-                5
-            )
+        assert_eq!(
+            SingleSessionApp::is_finalized(session_id.encode()).unwrap(), 
+            false    
         );
-        assert_noop!(
-            SingleApp::is_finalized(
-                Origin::signed(players_peers[0]),
-                session_id
-            ),
-            "NotFinalized"
+
+        let args_query_outcome = SingleSessionArgsQueryOutcome {
+            session_id: session_id,
+            query_data: 5
+        };
+        assert_eq!(
+            SingleSessionApp::get_outcome(args_query_outcome.encode()).unwrap(),
+            true.encode()
         );
     })
 }
@@ -128,22 +127,22 @@ fn test_fail_update_by_action_before_settle_finalized_time_should_fail() {
             players: players_peers.clone(),
             timeout: 2,
         };
-        assert_ok!(SingleApp::app_initiate(
+        assert_ok!(SingleSessionApp::app_initiate(
             Origin::signed(players_peers[0]),
             initiate_request.clone()
         ));
 
-        let session_id = SingleApp::get_session_id(initiate_request.nonce, initiate_request.players.clone());
+        let session_id = SingleSessionApp::get_session_id(initiate_request.nonce, initiate_request.players.clone());
         let state_proof = get_state_proof(0, 2, 5, 2, session_id, players_pair);
         assert_ok!(
-            SingleApp::update_by_state(
+            SingleSessionApp::update_by_state(
                 Origin::signed(players_peers[0]),
                 state_proof
             )
         );
 
         assert_noop!(
-            SingleApp::update_by_action(
+            SingleSessionApp::update_by_action(
                 Origin::signed(players_peers[0]),
                 session_id,
                 1
@@ -167,37 +166,38 @@ fn test_pass_update_by_action_after_settle_finalized_time() {
             players: players_peers.clone(),
             timeout: 2,
         };
-        assert_ok!(SingleApp::app_initiate(
+        assert_ok!(SingleSessionApp::app_initiate(
             Origin::signed(players_peers[0]),
             initiate_request.clone()
         ));
 
-        let session_id = SingleApp::get_session_id(initiate_request.nonce, initiate_request.players.clone());
+        let session_id = SingleSessionApp::get_session_id(initiate_request.nonce, initiate_request.players.clone());
         let state_proof = get_state_proof(0, 2, 5, 2, session_id, players_pair);
         assert_ok!(
-            SingleApp::update_by_state(
+            SingleSessionApp::update_by_state(
                 Origin::signed(players_peers[0]),
                 state_proof
             )
         );
 
-        let settle_finalized_time = SingleApp::get_settle_finalized_time(session_id).unwrap();
+        let settle_finalized_time = SingleSessionApp::get_settle_finalized_time(session_id).unwrap();
         System::set_block_number(settle_finalized_time + 1);
         assert_ok!(
-            SingleApp::update_by_action(
+            SingleSessionApp::update_by_action(
                 Origin::signed(players_peers[0]),
                 session_id,
                 1
             )
         );
 
-        assert_ok!(
-            SingleApp::get_outcome(
-                Origin::signed(players_peers[0]),
-                session_id,
-                5
-            )
-        );        
+        let args_query_outcome = SingleSessionArgsQueryOutcome {
+            session_id: session_id,
+            query_data: 5
+        };
+        assert_eq!(
+            SingleSessionApp::get_outcome(args_query_outcome.encode()).unwrap(),
+            true.encode()
+        );    
     })
 }
 
@@ -214,15 +214,15 @@ fn test_fail_update_by_state_with_invlaid_seq_num() {
             players: players_peers.clone(),
             timeout: 2,
         };
-        assert_ok!(SingleApp::app_initiate(
+        assert_ok!(SingleSessionApp::app_initiate(
             Origin::signed(players_peers[0]),
             initiate_request.clone()
         ));
 
-        let session_id = SingleApp::get_session_id(initiate_request.nonce, initiate_request.players.clone());
+        let session_id = SingleSessionApp::get_session_id(initiate_request.nonce, initiate_request.players.clone());
         let state_proof = get_state_proof(0, 0, 5, 2, session_id, players_pair);
         assert_noop!(
-            SingleApp::update_by_state(
+            SingleSessionApp::update_by_state(
                 Origin::signed(players_peers[0]),
                 state_proof
             ),
@@ -245,15 +245,15 @@ fn test_pass_update_by_state_state_is_2() {
             players: players_peers.clone(),
             timeout: 2,
         };
-        assert_ok!(SingleApp::app_initiate(
+        assert_ok!(SingleSessionApp::app_initiate(
             Origin::signed(players_peers[0]),
             initiate_request.clone()
         ));
 
-        let session_id = SingleApp::get_session_id(initiate_request.nonce, initiate_request.players.clone());
+        let session_id = SingleSessionApp::get_session_id(initiate_request.nonce, initiate_request.players.clone());
         let state_proof = get_state_proof(0, 2, 2, 2, session_id, players_pair);
         assert_ok!(
-            SingleApp::update_by_state(
+            SingleSessionApp::update_by_state(
                 Origin::signed(players_peers[0]),
                 state_proof
             )
@@ -261,18 +261,17 @@ fn test_pass_update_by_state_state_is_2() {
         let expected_event = TestEvent::single_app(RawEvent::IntendSettle(session_id, 2));       
         assert!(System::events().iter().any(|a| a.event == expected_event)); 
 
-        assert_ok!(
-            SingleApp::get_outcome(
-                Origin::signed(players_peers[0]),
-                session_id,
-                2
-            )
+        assert_eq!(
+            SingleSessionApp::is_finalized(session_id.encode()).unwrap(), 
+            true
         );
-        assert_ok!(
-            SingleApp::is_finalized(
-                Origin::signed(players_peers[0]),
-                session_id
-            )
+        let args_query_outcome = SingleSessionArgsQueryOutcome {
+            session_id: session_id,
+            query_data: 2
+        };
+        assert_eq!(
+            SingleSessionApp::get_outcome(args_query_outcome.encode()).unwrap(),
+            true.encode()
         );
     })
 }
@@ -290,22 +289,22 @@ fn test_fail_update_by_action_after_finalized() {
             players: players_peers.clone(),
             timeout: 2,
         };
-        assert_ok!(SingleApp::app_initiate(
+        assert_ok!(SingleSessionApp::app_initiate(
             Origin::signed(players_peers[0]),
             initiate_request.clone()
         ));
 
-        let session_id = SingleApp::get_session_id(initiate_request.nonce, initiate_request.players.clone());
+        let session_id = SingleSessionApp::get_session_id(initiate_request.nonce, initiate_request.players.clone());
         let state_proof = get_state_proof(0, 2, 2, 2, session_id, players_pair);
         assert_ok!(
-            SingleApp::update_by_state(
+            SingleSessionApp::update_by_state(
                 Origin::signed(players_peers[0]),
                 state_proof
             )
         );
 
         assert_noop!(
-            SingleApp::update_by_action(
+            SingleSessionApp::update_by_action(
                 Origin::signed(players_peers[0]),
                 session_id,
                 1
@@ -328,15 +327,15 @@ fn test_fail_update_by_state_after_finalized() {
             players: players_peers.clone(),
             timeout: 2,
         };
-        assert_ok!(SingleApp::app_initiate(
+        assert_ok!(SingleSessionApp::app_initiate(
             Origin::signed(players_peers[0]),
             initiate_request.clone()
         ));
 
-        let session_id = SingleApp::get_session_id(initiate_request.nonce, initiate_request.players.clone());
+        let session_id = SingleSessionApp::get_session_id(initiate_request.nonce, initiate_request.players.clone());
         let mut state_proof = get_state_proof(0, 2, 2, 2, session_id, players_pair.clone());
         assert_ok!(
-            SingleApp::update_by_state(
+            SingleSessionApp::update_by_state(
                 Origin::signed(players_peers[0]),
                 state_proof
             )
@@ -344,7 +343,7 @@ fn test_fail_update_by_state_after_finalized() {
 
         state_proof = get_state_proof(0, 3, 2, 2, session_id, players_pair);
         assert_noop!(
-            SingleApp::update_by_state(
+            SingleSessionApp::update_by_state(
                 Origin::signed(players_peers[0]),
                 state_proof
             ),
@@ -367,16 +366,16 @@ fn test_pass_finalize_on_action_timeout() {
             timeout: 2
         };
         assert_ok!(
-            SingleApp::app_initiate(
+            SingleSessionApp::app_initiate(
                 Origin::signed(players[0]),
                 initiate_request.clone()
             )
         );
 
-        let session_id = SingleApp::get_session_id(initiate_request.nonce, initiate_request.players.clone());
+        let session_id = SingleSessionApp::get_session_id(initiate_request.nonce, initiate_request.players.clone());
         let state_proof = get_state_proof(0, 1, 2, 2, session_id, players_pair.clone());
         assert_ok!(
-            SingleApp::update_by_state(
+            SingleSessionApp::update_by_state(
                 Origin::signed(players[0]),
                 state_proof
             )
@@ -384,7 +383,7 @@ fn test_pass_finalize_on_action_timeout() {
 
         System::set_block_number(5);
         assert_ok!(
-            SingleApp::finalize_on_action_timeout(
+            SingleSessionApp::finalize_on_action_timeout(
                 Origin::signed(players[0]),
                 session_id
             )
@@ -408,7 +407,7 @@ fn get_state_proof(
         timeout: timeout,
         session_id: session_id,
     };
-    let encoded = SingleApp::encode_app_state(app_state.clone());
+    let encoded = SingleSessionApp::encode_app_state(app_state.clone());
     let sig_1 = players_pair[0].sign(&encoded);
     let sig_2 = players_pair[1].sign(&encoded);
     let state_proof = StateProof {
