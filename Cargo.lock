@@ -898,7 +898,7 @@ dependencies = [
 
 [[package]]
 name = "multi-gomoku"
-version = "0.8.3"
+version = "0.8.4"
 dependencies = [
  "frame-support",
  "frame-system",
@@ -912,7 +912,7 @@ dependencies = [
 
 [[package]]
 name = "multi-session-app"
-version = "0.8.3"
+version = "0.8.4"
 dependencies = [
  "frame-support",
  "frame-system",
@@ -1626,7 +1626,7 @@ checksum = "29f060a7d147e33490ec10da418795238fd7545bba241504d6b31a409f2e6210"
 
 [[package]]
 name = "single-gomoku"
-version = "0.8.3"
+version = "0.8.4"
 dependencies = [
  "frame-support",
  "frame-system",
@@ -1640,7 +1640,7 @@ dependencies = [
 
 [[package]]
 name = "single-session-app"
-version = "0.8.4"
+version = "0.8.5"
 dependencies = [
  "frame-support",
  "frame-system",

@@ -2,7 +2,7 @@
 authors = ['Celer']
 edition = '2018'
 name = 'multi-gomoku'
-version = '0.8.3'
+version = '0.8.4'
 license = "MIT"
 repository = "https://github.com/celer-network/cApps-substrate"
 description = "Multi Gomoku runtime module"
