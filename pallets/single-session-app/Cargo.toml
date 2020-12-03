@@ -2,7 +2,7 @@
 authors = ['Celer']
 edition = '2018'
 name = 'single-session-app'
-version = '0.8.4'
+version = '0.8.5'
 license = "MIT"
 repository = "https://github.com/celer-network/cApps-substrate"
 description = "Single Session App runtime module"
