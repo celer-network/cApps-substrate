@@ -26,13 +26,12 @@ We will be editing three files: `celer-pay/src/traists.rs`, `celer-pay/src/trait
 | |
 | +-- ...
 |
-+-- Cargo.toml <-- One change in this file
++-- Cargo.toml <-- Two change in this file
 ```
 
 # Imporing a single-session-app runtime module
 
 First, we will now importing single-session-app runtime module in celer-pay `Cargo.toml` file.
-
 single-session-app runtime module is already published in [crates.io](https://crates.io/crates/single-session-app)
 
 Open `celer-pay/Cargo.toml` and edit it.
@@ -70,7 +69,7 @@ pub trait Trait: system::Trait + pallet_timestamp::Trait + celer_contracts::Trai
 ```
 
 # Edit runtime module condition caller file
-Third, we will now add call logic of [query function](https://github.com/celer-network/cApps-substrate/blob/master/pallets/single-session-app/src/lib.rs)(line 309~357) and register [registration_num](https://github.com/celer-network/cChannel-substrate/blob/master/pallets/celer-pay/src/pay_resolver.rs)(line 24) of single-session-app runtime module into `celer-pay/src/runtime_module_condition_caller.rs`.
+Third, we will now add call logic of [query function](https://github.com/celer-network/cApps-substrate/blob/master/pallets/single-session-app/src/lib.rs)[line 309~357] and register [registration_num](https://github.com/celer-network/cChannel-substrate/blob/master/pallets/celer-pay/src/pay_resolver.rs)[line 24] of single-session-app runtime module into `celer-pay/src/runtime_module_condition_caller.rs`.
 
 Open `celer-pay/src/runtime_module_condition_caller.rs` and edit it.
 
@@ -110,10 +109,11 @@ Open `celer-pay/src/runtime_module_condition_caller.rs` and edit it.
 
 Hack of integration runtime module condition into celer-pay runtime module is All!
 
+# Compile celer-pay runtime module 
 Finally, we will now check whether compile is success.
 
 **`celer-pay directory`**
 
 ```cargo build --release```
 
-Integrated single-session-app file is [here](https://github.com/celer-network/cChannel-substrate/tree/integration/single-session-app).
+*Integrated souce code is [here](https://github.com/celer-network/cChannel-substrate/tree/integration/single-session-app).
