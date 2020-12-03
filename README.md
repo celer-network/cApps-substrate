@@ -33,7 +33,7 @@ pub fn get_outcome(args_query_outcome: Vec<u8>) -> Result<Vec<u8>, DispatchError
 
 You can implement CelerApp with Substrate runtime module or smart contract.
 
-|  | boolean & newmeric outcome runtime module | boolean & numeric outcome smart contract |
+|  | boolean & numeric outcome runtime module | boolean & numeric outcome smart contract |
 | ----------|---------- | ---------------|
 | deploy option | forkless runtime upgrade | forkless runtime upgrade or virtual contract |
 |Ease of runtime upgrade or deploy| hard |　easy |
