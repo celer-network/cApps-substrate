@@ -35,14 +35,16 @@ You can implement CelerApp with Substrate runtime module or smart contract.
 
 |  | boolean & numeric outcome runtime module | boolean & numeric outcome smart contract |
 | ----------|---------- | ---------------|
-| deploy option | forkless runtime upgrade | forkless runtime upgrade or virtual contract |
+| deploy option | forkless runtime upgrade | initially smart contract deploy or virtual contract |
 |Ease of runtime upgrade or deploy| hard |　easy |
 |Ease of development| medium |  easy | 
 |Level of customization | high |　low |
 
-- [forkless runtime upgrade](https://substrate.dev/docs/en/tutorials/upgrade-a-chain/): forkless runtime upgrade once by the developer and can be repeatedly shared by all players. No additional code needs to be deployed or runtime upgrade when players want to dispute on-chain. 
+- [forkless runtime upgrade](https://substrate.dev/docs/en/tutorials/upgrade-a-chain/): A blockchain's runtime defines the state the blockchain can hold and also defines the logic for effecting changes to that state. Substrate makes it possible to deploy enhanced runtime capabilities (including breaking changes) without a hard fork. 
 
-- virtual contract: The contract can also stay off-chain as a virtual counterfactually instantiated by involved parties. A virtual contract only needs to be deployed only needs to be deployed on-chain if someone wants to dispute, in which case CelerPay can find where to call the `is_finalized` and `get_outcome`APIs through a unique identifier computed by the hash of the virtual contract code, initial states, and a nonce.
+- initially deploy: initially deploy once by the developer and can be repeatedly shared by all players. No additional code needs to be deployed or runtime upgrade when players want to dispute on-chain. 
+
+- virtual contract: The smart contract can also stay off-chain as a virtual counterfactually instantiated by involved parties. A virtual smart contract only needs to be deployed only needs to be deployed on-chain if someone wants to dispute, in which case CelerPay can find where to call the `is_finalized` and `get_outcome`APIs through a unique identifier computed by the hash of the virtual smart contract code, initial states, and a nonce. Runtime module condition won't be virtual contract.
 
 *Smart contract will support future.
 
