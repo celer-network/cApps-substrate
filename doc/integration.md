@@ -10,13 +10,13 @@ We will now integrate [single-session-app](https://github.com/celer-network/cApp
 2. Go to cChannel-substrate's root directory.
 3. ```cd ./pallets/celer-pay```
 
-We will be editing three files: `celer-pay/src/traists.rs`, `celer-pay/src/traits.rs`, `celer-pay/src/runtime_module_condition_caller.rs`.
+We will be editing three files: `Cargo.toml`, `celer-pay/src/traits.rs`, `celer-pay/src/runtime_module_condition_caller.rs`.
 
 ```
 |
 +-- celer-pay
-| |
-| +-- rpc
+|
++-- rpc
 |
 +-- src
 | |
